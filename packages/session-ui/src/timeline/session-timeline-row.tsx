@@ -212,6 +212,7 @@ export function createSessionTimelineRowRenderer(input: {
               {
                 type: "shell",
                 id: ref.partID,
+                command: message.command,
                 time: message.time,
                 render: () => <Shell messageID={ref.messageID} grouped />,
               },

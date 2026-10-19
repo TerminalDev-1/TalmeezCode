@@ -331,7 +331,7 @@ function currentSkillName(tool: SessionMessageAssistantTool) {
 }
 
 // Context group labels name each tool once; detailed subtitles belong to the tool rows.
-function toolTitle(tool: SessionMessageAssistantTool, i18n: UiI18n) {
+export function toolTitle(tool: SessionMessageAssistantTool, i18n: UiI18n) {
   switch (tool.name) {
     case "read":
       return i18n.t("ui.tool.read")
@@ -367,6 +367,9 @@ function toolTitle(tool: SessionMessageAssistantTool, i18n: UiI18n) {
       return tool.name
   }
 }
+
+import { humanCommandTitle, humanToolTitle } from "./tool-title"
+export { humanCommandTitle, humanToolTitle } from "./tool-title"
 
 function urls(text: string | undefined) {
   if (!text) return []
@@ -455,7 +458,13 @@ function ExaOutput(props: { output?: string }) {
 export type ContextGroupPart =
   | SessionMessageAssistantTool
   | (SessionMessageAssistantReasoning & { id: string; streaming?: boolean })
-  | { type: "notice" | "shell"; id: string; time?: { created: number; completed?: number }; render: () => JSX.Element }
+  | {
+      type: "notice" | "shell"
+      id: string
+      command?: string
+      time?: { created: number; completed?: number }
+      render: () => JSX.Element
+    }
 
 export function CurrentContextToolGroup(props: {
   parts: ContextGroupPart[]
@@ -486,7 +495,8 @@ export function CurrentContextToolGroup(props: {
         props.parts.flatMap((part) => {
           if (part.type !== "tool" && part.type !== "shell") return []
 
-          return [part.type === "tool" ? toolTitle(part, i18n) : i18n.t("ui.tool.shell")]
+          const title = humanToolTitle(part, i18n)
+          return title ? [title] : []
         }),
       ),
     ]),
@@ -2082,6 +2092,11 @@ ToolRegistry.register({
       )
     }
 
+    const humanTitle = createMemo(() => {
+      const cmd = command()
+      return cmd ? humanCommandTitle(cmd) : undefined
+    })
+
     return (
       <BasicTool
         {...props}
@@ -2094,7 +2109,7 @@ ToolRegistry.register({
           <div data-slot="basic-tool-tool-info-structured">
             <div data-slot="basic-tool-tool-info-main">
               <span data-slot="basic-tool-tool-title">
-                <TextShimmer text={i18n.t("ui.tool.shell")} active={pending()} />
+                <TextShimmer text={humanTitle() || i18n.t("ui.tool.shell")} active={pending()} />
               </span>
               <Show when={!open()}>
                 <Show
