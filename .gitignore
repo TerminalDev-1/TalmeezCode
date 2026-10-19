@@ -35,5 +35,6 @@ UPCOMING_CHANGELOG.md
 RELEASE_REVIEW.md
 logs/
 *.bun-build
+.bun/
 tsconfig.tsbuildinfo
 /artifacts/
