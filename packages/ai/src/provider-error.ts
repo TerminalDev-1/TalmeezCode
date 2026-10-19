@@ -50,6 +50,8 @@ const patterns = [
   /range of input length should be/i,
   /too many tokens/i,
   /token limit exceeded/i,
+  /context limit/i,
+  /context[_ ]limit[_ ]exceeded/i,
   /request_too_large/i,
 ]
 

@@ -3407,6 +3407,39 @@ describe("SessionRunnerLLM", () => {
     ])
   })
 
+  scenario("warns and compacts when session hits 200K context limit", function* (s) {
+    yield* setupOverflowRecovery(s)
+    s.currentModel = recoveryModel
+    yield* s.llm.push(
+      TestLLM.text("## Objective\n- Recover 200K overflow", "text-summary-200k"),
+      TestLLM.text("Recovered under 200K", "text-final-200k"),
+    )
+    yield* s.runPrompt("overflow ".repeat(100_000))
+
+    expect(s.requests).toHaveLength(2)
+    const messages = yield* s.messages
+    expect(messages).toContainEqual(
+      expect.objectContaining({
+        type: "synthetic",
+        text: "You've hit the context limit of 200K tokens. OpenCode will attempt compaction until the context is under the 200K limit.",
+        description: "Context limit reached: compacting until under 200K",
+      }),
+    )
+    const context = yield* s.context
+    expect(context).toContainEqual(
+      expect.objectContaining({
+        type: "compaction",
+        summary: "## Objective\n- Recover 200K overflow",
+      }),
+    )
+    expect(context).toContainEqual(
+      expect.objectContaining({
+        type: "assistant",
+        finish: "stop",
+      }),
+    )
+  })
+
   scenario("persists a second context overflow after one recovery", function* (s) {
     yield* setupOverflowRecovery(s)
     const overflow = () => [

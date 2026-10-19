@@ -213,15 +213,41 @@ const layer = Layer.effect(
       let initial: SessionContext.Loaded | undefined = first
       let recoverOverflow = true
       let recoverContinuation = true
+      let warnedContextLimit = false
+
+      const warnContextLimit = Effect.gen(function* () {
+        if (warnedContextLimit) return
+        yield* bus.publish(SessionEvent.Synthetic, {
+          sessionID,
+          text: "You've hit the context limit of 200K tokens. OpenCode will attempt compaction until the context is under the 200K limit.",
+          description: "Context limit reached: compacting until under 200K",
+        })
+        warnedContextLimit = true
+      })
+
       while (true) {
         // Reuse boundary preparation once; retries refresh context without delivering more input.
         const loaded = initial ?? (yield* prepareContext(sessionID).pipe(Effect.flatMap(context.load)))
         initial = undefined
+        const currentTokens = SessionCompaction.estimateContext(loaded)
+        if (currentTokens >= 200_000) {
+          yield* warnContextLimit
+        }
         const compacted = yield* compaction.compact({ reason: "auto", context: loaded })
         if (compacted.status === "failed") return yield* new StepFailedError({ error: compacted.error })
         if (compacted.status === "completed") {
           assistantMessageID = SessionMessage.ID.create()
           continue
+        }
+        if (currentTokens >= 200_000 && loaded.messages.at(-1)?.type !== "compaction") {
+          const overflowCompacted = yield* compaction.compact({ reason: "overflow", context: loaded })
+          if (overflowCompacted.status === "completed") {
+            assistantMessageID = SessionMessage.ID.create()
+            continue
+          }
+          if (overflowCompacted.status === "failed") {
+            return yield* new StepFailedError({ error: overflowCompacted.error })
+          }
         }
         const stepLimitReached = loaded.agent.info.steps !== undefined && step >= loaded.agent.info.steps
         const transcript = SessionModelRequest.baseTranscript({
@@ -264,9 +290,13 @@ const layer = Layer.effect(
           recoverContinuation,
           recoverOverflow: Effect.suspend(() =>
             recoverOverflow
-              ? compaction
-                  .compact({ reason: "overflow", context: loaded })
-                  .pipe(Effect.map((result) => result.status === "completed"))
+              ? Effect.gen(function* () {
+                  if (currentTokens >= 190_000) {
+                    yield* warnContextLimit
+                  }
+                  const result = yield* compaction.compact({ reason: "overflow", context: loaded })
+                  return result.status === "completed"
+                })
               : Effect.succeed(false),
           ),
         })

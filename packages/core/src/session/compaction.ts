@@ -410,11 +410,11 @@ export const layer = Layer.effect(
         const fits = !asText && estimateRequest(prepared.request) <= target
         const request = fits
           ? prepared.request
-          : (flattenAndDropOldest(prepared.request, context, target) ??
+          : (flattenAndDropOldest(prepared.request, context, target, rejections) ??
             (rejections > 0
               ? undefined
               : asText
-                ? flattenAndDropOldest(prepared.request, context, Number.POSITIVE_INFINITY)
+                ? flattenAndDropOldest(prepared.request, context, Number.POSITIVE_INFINITY, rejections)
                 : prepared.request))
         if (!request) {
           return yield* Effect.fail<Failure>({
@@ -468,7 +468,12 @@ export const layer = Layer.effect(
      * outputs. Only if it still does not fit are whole exchanges dropped, oldest first. Undefined when even the
      * newest exchange does not fit.
      */
-    const flattenAndDropOldest = (request: LLMRequest, context: SessionContext.Loaded, target: number) => {
+    const flattenAndDropOldest = (
+      request: LLMRequest,
+      context: SessionContext.Loaded,
+      target: number,
+      rejections = 0,
+    ) => {
       const previous = previousCompaction(context.messages)
       const end =
         request.messages.findLastIndex(
@@ -503,7 +508,14 @@ export const layer = Layer.effect(
         estimateRequest({ system: request.system, tools: request.tools, messages: lead }) -
         Token.estimate(note(exchanges.length))
       const kept = exchanges.slice(oldestToDrop(exchanges, (text) => Token.estimate(text) + 1, room))
-      if (kept.length === 0) return undefined
+      if (kept.length === 0) {
+        if (rejections === 0 || exchanges.length === 0 || room <= 100) return undefined
+        const last = exchanges.at(-1)!
+        const truncated = truncateToTokens(last, room, "end")
+        return LLMRequest.update(request, {
+          messages: [...lead, Message.user(note(exchanges.length) + truncated)],
+        })
+      }
       return LLMRequest.update(request, {
         messages: [...lead, Message.user(note(exchanges.length - kept.length) + kept.join("\n\n"))],
       })
@@ -712,10 +724,14 @@ const splitConversation = (messages: ReadonlyArray<SessionMessage.Info>, keep: n
   })
   if (entries.length === 0) return undefined
 
-  const recent = entries.slice(recentStart(entries, keep, previousCompaction(messages)))
+  const start = recentStart(entries, keep, previousCompaction(messages))
+  let recentText = entries.slice(start).map((entry) => entry.text).join("\n\n")
+  if (keep > 0 && Token.estimate(recentText) > keep) {
+    recentText = truncateToTokens(recentText, keep, "end")
+  }
   return {
-    older: messages.slice(0, recent[0]?.index ?? messages.length),
-    recent: recent.map((entry) => entry.text).join("\n\n"),
+    older: messages.slice(0, entries[start]?.index ?? messages.length),
+    recent: recentText,
   }
 }
 
@@ -740,7 +756,8 @@ const recentStart = (
 
   // One exchange, nothing older. Summarize it all and keep nothing, unless a previous summary already
   // kept recent text, in which case keep everything and summarize only the summary before it.
-  return previous?.recent ? 0 : entries.length
+  if (previous?.recent && Token.estimate(entries.map((e) => e.text).join("\n\n")) <= keep) return 0
+  return entries.length
 }
 
 const oldestToDrop = <T>(items: ReadonlyArray<T>, size: (item: T) => number, budget: number) => {
@@ -825,6 +842,29 @@ const truncateToolOutput = (value: string) => {
   return `${value.slice(0, end)}\n[truncated]`
 }
 
+export const truncateToTokens = (value: string, maxTokens: number, mode: "start" | "end" = "end") => {
+  const maxChars = Math.max(0, maxTokens * 4 - 80)
+  if (value.length <= maxChars) return value
+
+  if (mode === "end") {
+    let start = value.length - maxChars
+    while (start < value.length && (value.charCodeAt(start) & 0xfc00) === 0xdc00) {
+      start++
+    }
+    return `[earlier text truncated to stay within context limit]\n` + value.slice(start)
+  }
+
+  let end = 0
+  let kept = 0
+  for (const char of value) {
+    if (kept >= maxChars) break
+    end += char.length
+    kept++
+  }
+  return `${value.slice(0, end)}\n[truncated to stay within context limit]`
+}
+
+
 /** One request message as a flattened transcript line. Empty for what the transcript leaves out. */
 const flattenMessage = (message: Message) => {
   if (message.role === "system") return ""
@@ -908,7 +948,7 @@ export const estimatePrompt = (context: SessionContext.Loaded) => {
  * is more. The summary request is capped at the same size, so its output limit is whatever the reserve leaves. A window
  * too small to give up `RESERVE_MIN` keeps 10%.
  */
-const calculateCeiling = (limit: SessionContext.Loaded["model"]["limit"], buffer: number | undefined) => {
+export const calculateCeiling = (limit: SessionContext.Loaded["model"]["limit"], buffer: number | undefined) => {
   // Unknown limits are reported as 0. An unknown input limit falls back to the context window; with no window at
   // all, only a provider rejection can limit the request.
   const window = limit.input || limit.context

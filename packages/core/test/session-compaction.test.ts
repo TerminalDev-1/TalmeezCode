@@ -644,3 +644,35 @@ it.effect("forked session compaction reuses the fork root prompt cache key", () 
     expect(requests[0]?.promptCacheKey).toBe(rootID)
   }),
 )
+
+it.effect("compaction bounds recent context to keep tokens", () =>
+  Effect.gen(function* () {
+    requests = []
+    const session = yield* insertSession(Session.ID.make("ses_bounded_recent_compaction"))
+    // A huge message that would exceed 15k tokens if kept verbatim.
+    const messages = [
+      SessionMessage.User.make({
+        id: SessionMessage.ID.create(),
+        type: "user",
+        text: "Earlier question to summarize.",
+        time: { created: DateTime.makeUnsafe(0) },
+      }),
+      SessionMessage.User.make({
+        id: SessionMessage.ID.create(),
+        type: "user",
+        text: "x".repeat(120_000), // ~30,000 tokens, exceeds keep (15k)
+        time: { created: DateTime.makeUnsafe(0) },
+      }),
+    ]
+
+    expect(yield* compactManually(session, messages)).toEqual({ status: "completed" })
+    const store = yield* SessionStore.Service
+    const stored = (yield* store.context(session.id))[0]
+    expect(stored?.type).toBe("compaction")
+    if (stored?.type === "compaction" && stored.status === "completed") {
+      // Recent context must be bounded to keep allowance (15k tokens)
+      expect(stored.recent).toContain("[earlier text truncated to stay within context limit]")
+    }
+  }),
+)
+
