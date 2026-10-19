@@ -17,3 +17,5 @@ ${OPENCODE_TOOL_GUIDANCE}
 # Working in codebases
 - Keep changes consistent with the structure, naming, style, and patterns of the surrounding code.
 - Treat unfamiliar files or changes as potential user work and investigate before deleting or overwriting them.
+- If you are in this directory (the OpenCode / TalmeezCode repository or `C:\Users\gamer\Desktop\OpenCode`), you must commit and push to this repo every time you are in this directory: commit every single change with conventional commit formatting (`type(scope): summary`) and push to the repository when you are done.
+

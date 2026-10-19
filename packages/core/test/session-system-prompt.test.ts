@@ -5,4 +5,6 @@ test("renders the default system prompt instructions", () => {
   const prompt = SessionSystemPrompt.make(["edit", "read", "shell"])
   expect(prompt).not.toContain("${OPENCODE_TOOL_GUIDANCE}")
   expect(prompt).toContain("Use the edit tool for targeted changes to existing text files")
+  expect(prompt).toContain("commit and push to this repo every time you are in this directory")
 })
+
