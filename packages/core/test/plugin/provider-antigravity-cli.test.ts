@@ -17,6 +17,7 @@ import {
   prompt,
   requestsDesktopHost,
   stripReasoningSuffix,
+  usage,
 } from "@opencode/core/plugin/provider/antigravity-cli"
 import { ProviderPlugins } from "@opencode/core/plugin/provider"
 import { Provider } from "@opencode/core/provider"
@@ -142,6 +143,34 @@ test("parses the Antigravity usage payload across all three quota groups", async
     ["5h", 1],
   ])
   expect(usage.groups[2]?.buckets.map((b) => [b.window, b.remainingFraction])).toEqual([["weekly", 0.82]])
+})
+
+test("caps cache read tokens at input tokens so cumulative loop counts do not blow out the context window", () => {
+  const result = usage({
+    input_tokens: 16_000,
+    output_tokens: 5_000,
+    thinking_tokens: 2_000,
+    cache_read_tokens: 4_000_000,
+    total_tokens: 4_023_000,
+  })
+  expect(result.inputTokens).toEqual({
+    total: 16_000,
+    noCache: 0,
+    cacheRead: 16_000,
+    cacheWrite: undefined,
+  })
+  expect(result.outputTokens).toEqual({
+    total: 5_000,
+    text: 3_000,
+    reasoning: 2_000,
+  })
+  expect(result.raw).toEqual({
+    input_tokens: 16_000,
+    output_tokens: 5_000,
+    thinking_tokens: 2_000,
+    cache_read_tokens: 4_000_000,
+    total_tokens: 4_023_000,
+  })
 })
 
 test("serializes OpenCode roles without embedding binary file data", () => {

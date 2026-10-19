@@ -511,12 +511,14 @@ function stepParts(state: StreamState, step: typeof StepUpdate.Type): LanguageMo
   ]
 }
 
-function usage(input: typeof Usage.Type): LanguageModelV3Usage {
+export function usage(input: typeof Usage.Type): LanguageModelV3Usage {
+  const cacheRead = Math.min(input.cache_read_tokens, input.input_tokens)
+  const noCache = Math.max(0, input.input_tokens - cacheRead)
   return {
     inputTokens: {
       total: input.input_tokens,
-      noCache: Math.max(0, input.input_tokens - input.cache_read_tokens),
-      cacheRead: input.cache_read_tokens,
+      noCache,
+      cacheRead,
       cacheWrite: undefined,
     },
     outputTokens: {
