@@ -4,7 +4,7 @@ model: opencode/kimi-k2.5
 subtask: true
 ---
 
-commit and push
+commit and push to the public remote repository (`talmeezcode`)
 
 Use `type(scope): summary` with one of these types: `feat`, `fix`, `docs`, `chore`, `refactor`, or `test`. The scope is optional.
 

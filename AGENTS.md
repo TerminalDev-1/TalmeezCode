@@ -1,7 +1,7 @@
 - After changing the public Protocol or Server `HttpApi`, run `bun run generate` from `packages/client`. Do not edit generated client files directly.
 - Keep runtime dependencies directed from Schema to Core and Protocol, then from Core and Protocol to Server. Client runtime code may depend on Schema and Protocol but never Core or Server; `sdk` composes Client, Core, and Server.
 - This repository does not use Changesets. Do not add `.changeset` files; follow the existing release workflow instead.
-- The default branch is `dev`. Base branches and worktrees on `origin/dev`, target PRs at `dev`, and diff against `origin/dev` unless told otherwise.
+- The default branch is `dev`. The public remote repository is `talmeezcode` (`https://github.com/TerminalDev-1/TalmeezCode.git`). Base branches and worktrees on `talmeezcode/dev` (or `origin/dev`), target PRs at `dev`, and push/publish all commits to the public repository (`talmeezcode`) unless told otherwise.
 
 ## Live TUI Testing
 
@@ -37,6 +37,9 @@ Use conventional commit-style messages and PR titles: `type(scope): summary`.
 Valid types are `feat`, `fix`, `docs`, `chore`, `refactor`, and `test`. Scopes are optional; use the affected package or area when helpful, e.g. `core`, `opencode`, `tui`, `app`, `desktop`, `sdk`, or `plugin`.
 
 Examples: `fix(tui): simplify thinking toggle styling`, `docs: update contributing guide`, `chore(sdk): regenerate types`.
+
+- Always commit every single change using conventional commit-style formatting (`type(scope): summary`).
+- When working in this repository, always push/publish commits to the public remote repository (`talmeezcode`, e.g. `git push talmeezcode <branch>` or `git push --no-verify`) instead of leaving them uncommitted or only in the local repository.
 
 ## Style Guide
 
