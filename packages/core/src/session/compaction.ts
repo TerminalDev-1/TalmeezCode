@@ -247,7 +247,9 @@ export const layer = Layer.effect(
       // An encrypted native window estimates as nothing, so wait for a response to measure it.
       const measured = messages.findLastIndex((message) => hasMeasuredPrompt(message, context.model.ref))
       if (measured < messages.findLastIndex(SessionProviderContext.isCheckpoint)) return false
-      return estimateContext(context) >= ceiling
+      const window = context.model.limit.input || context.model.limit.context
+      const threshold = window === 200_000 ? 170_000 : ceiling
+      return estimateContext(context) >= threshold
     }
 
     /**

@@ -546,4 +546,9 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
   },
 })
 
-export type ModelSelection = ReturnType<typeof useLocal>["model"]
+export type ModelSelection = Omit<ReturnType<typeof useLocal>["model"], "trackSessionCommit"> & {
+  trackSessionCommit?: (
+    sessionID: string,
+    selection: { agent: string; model: ModelKey; variant?: string },
+  ) => (() => void) | void
+}

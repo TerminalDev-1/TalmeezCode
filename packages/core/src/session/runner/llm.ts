@@ -219,8 +219,8 @@ const layer = Layer.effect(
         if (warnedContextLimit) return
         yield* bus.publish(SessionEvent.Synthetic, {
           sessionID,
-          text: "You've hit the context limit of 200K tokens. OpenCode will attempt compaction until the context is under the 200K limit.",
-          description: "Context limit reached: compacting until under 200K",
+          text: "You've hit the 170K context threshold (limit: 200K). OpenCode will attempt compaction before reaching the 200K limit.",
+          description: "Context threshold reached: compacting at 170K before 200K limit",
         })
         warnedContextLimit = true
       })
@@ -230,7 +230,7 @@ const layer = Layer.effect(
         const loaded = initial ?? (yield* prepareContext(sessionID).pipe(Effect.flatMap(context.load)))
         initial = undefined
         const currentTokens = SessionCompaction.estimateContext(loaded)
-        if (currentTokens >= 200_000) {
+        if (currentTokens >= 170_000) {
           yield* warnContextLimit
         }
         const compacted = yield* compaction.compact({ reason: "auto", context: loaded })
@@ -239,7 +239,7 @@ const layer = Layer.effect(
           assistantMessageID = SessionMessage.ID.create()
           continue
         }
-        if (currentTokens >= 200_000 && loaded.messages.at(-1)?.type !== "compaction") {
+        if (currentTokens >= 170_000 && loaded.messages.at(-1)?.type !== "compaction") {
           const overflowCompacted = yield* compaction.compact({ reason: "overflow", context: loaded })
           if (overflowCompacted.status === "completed") {
             assistantMessageID = SessionMessage.ID.create()
@@ -291,7 +291,7 @@ const layer = Layer.effect(
           recoverOverflow: Effect.suspend(() =>
             recoverOverflow
               ? Effect.gen(function* () {
-                  if (currentTokens >= 190_000) {
+                  if (currentTokens >= 170_000) {
                     yield* warnContextLimit
                   }
                   const result = yield* compaction.compact({ reason: "overflow", context: loaded })

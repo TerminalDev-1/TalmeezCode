@@ -3407,7 +3407,7 @@ describe("SessionRunnerLLM", () => {
     ])
   })
 
-  scenario("warns and compacts when session hits 200K context limit", function* (s) {
+  scenario("warns and compacts when session hits 170K context threshold", function* (s) {
     yield* setupOverflowRecovery(s)
     s.currentModel = recoveryModel
     yield* s.llm.push(
@@ -3421,8 +3421,8 @@ describe("SessionRunnerLLM", () => {
     expect(messages).toContainEqual(
       expect.objectContaining({
         type: "synthetic",
-        text: "You've hit the context limit of 200K tokens. OpenCode will attempt compaction until the context is under the 200K limit.",
-        description: "Context limit reached: compacting until under 200K",
+        text: "You've hit the 170K context threshold (limit: 200K). OpenCode will attempt compaction before reaching the 200K limit.",
+        description: "Context threshold reached: compacting at 170K before 200K limit",
       }),
     )
     const context = yield* s.context

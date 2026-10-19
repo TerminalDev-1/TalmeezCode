@@ -263,7 +263,7 @@ export const AntigravityCLIPlugin = define({
           model.capabilities = { tools: false, input: ["text"], output: ["text"] }
           model.variants = modelReasoningVariants(item.id, availableIds)
           model.limit = isGeminiModel(item.id, item.name)
-            ? { context: 2_000_000, output: 64_000 }
+            ? { context: 200_000, output: 64_000 }
             : { context: 200_000, output: 32_000 }
         })
       })
@@ -541,7 +541,7 @@ function stepParts(state: StreamState, step: typeof StepUpdate.Type): LanguageMo
   ]
 }
 
-export function usage(input: typeof Usage.Type, maxContext = 2_000_000): LanguageModelV3Usage {
+export function usage(input: typeof Usage.Type, maxContext = 200_000): LanguageModelV3Usage {
   const cappedTotal = Math.min(input.input_tokens, maxContext)
   const rawCache = Math.min(input.cache_read_tokens, cappedTotal)
   const cacheRead = Math.min(rawCache, maxContext)
