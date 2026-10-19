@@ -16,10 +16,10 @@ export function Wordmark(
         "overflow-visible [&_path]:[vector-effect:non-scaling-stroke]": props.outline,
       }}
     >
-      <g opacity={props.muted === false ? 1 : 0.6} class="[[data-color-scheme=dark]_&]:opacity-100">
+      <g opacity={props.muted === false ? 1 : 0.85} class="[[data-color-scheme=dark]_&]:opacity-100">
         <g mask={props.fade === false ? undefined : `url(#${mask})`}>
           <g
-            opacity={props.muted === false ? 1 : 0.16 * 0.7}
+            opacity={props.muted === false ? 1 : 0.85}
             fill={props.outline ? "none" : "currentColor"}
             stroke={props.outline ? "currentColor" : undefined}
             stroke-width={props.outline ? 1 : undefined}

@@ -1,4 +1,5 @@
 [data-component="new-session-wordmark"] {
+  --icon-base: currentColor;
   --icon-strong-base: var(--icon-base);
   --wordmark-shimmer-opacity: 0.45;
 
@@ -23,8 +24,8 @@
 }
 
 [data-color-scheme="dark"] [data-component="new-session-wordmark"] {
-  /* Preserve the previous dark highlight strength: 0.16 × 0.7 × 0.6. */
-  --wordmark-shimmer-opacity: 0.0672;
+  --icon-weak-base: color-mix(in srgb, var(--icon-base) 30%, transparent);
+  --wordmark-shimmer-opacity: 0.35;
 }
 
 /* Oversizing the mask moves its highlight physically left to right, including in RTL. */
