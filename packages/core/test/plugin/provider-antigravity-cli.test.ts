@@ -8,6 +8,7 @@ import { PluginHost } from "@opencode/core/plugin/host"
 import {
   AntigravityCLIPlugin,
   AntigravityOnlyPlugin,
+  cleanSystemPromptForAntigravity,
   collapseAntigravityModels,
   defaultModels,
   getUsage,
@@ -171,6 +172,40 @@ test("caps cache read tokens at input tokens so cumulative loop counts do not bl
     cache_read_tokens: 4_000_000,
     total_tokens: 4_023_000,
   })
+})
+
+test("caps cumulative loop counts so they do not blow out the context window beyond model limit", () => {
+  const result = usage({
+    input_tokens: 11_000_000,
+    output_tokens: 5_000,
+    thinking_tokens: 2_000,
+    cache_read_tokens: 10_800_000,
+    total_tokens: 11_023_000,
+  }, 2_000_000)
+  expect(result.inputTokens).toEqual({
+    total: 2_000_000,
+    noCache: 0,
+    cacheRead: 2_000_000,
+    cacheWrite: undefined,
+  })
+})
+
+test("cleans Code Mode catalog from system prompt for Antigravity", () => {
+  const systemWithCodeMode = `You are an AI agent.
+
+# Code Mode
+
+Use the \`execute\` tool to call the tools listed below.
+## Available tools
+- opencode (8 tools)
+
+<available_references>
+<reference>ref</reference>
+</available_references>`
+  const cleaned = cleanSystemPromptForAntigravity(systemWithCodeMode)
+  expect(cleaned).not.toContain("# Code Mode")
+  expect(cleaned).not.toContain("tools.opencode")
+  expect(cleaned).toContain("<available_references>")
 })
 
 test("serializes OpenCode roles without embedding binary file data", () => {

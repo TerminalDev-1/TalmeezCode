@@ -50,6 +50,9 @@ const StepUpdate = Schema.Struct({
   tool_name: Schema.String.pipe(Schema.optional),
   text_delta: Schema.String.pipe(Schema.optional),
   tool_info: ToolInfo.pipe(Schema.optional),
+  input_tokens: Schema.Number.pipe(Schema.optional),
+  cache_read_tokens: Schema.Number.pipe(Schema.optional),
+  output_tokens: Schema.Number.pipe(Schema.optional),
 })
 
 const DeniedAction = Schema.Struct({
@@ -259,7 +262,9 @@ export const AntigravityCLIPlugin = define({
           model.family = Model.Family.make(family(item.id))
           model.capabilities = { tools: false, input: ["text"], output: ["text"] }
           model.variants = modelReasoningVariants(item.id, availableIds)
-          model.limit = { context: 200_000, output: 32_000 }
+          model.limit = isGeminiModel(item.id, item.name)
+            ? { context: 2_000_000, output: 64_000 }
+            : { context: 200_000, output: 32_000 }
         })
       })
     })
@@ -428,6 +433,11 @@ type StreamState = {
   text: Set<string>
   desktopHost: boolean
   responseOverride?: string
+  lastStepUsage?: {
+    input_tokens?: number
+    cache_read_tokens?: number
+    output_tokens?: number
+  }
 }
 
 function streamParts(state: StreamState, event: typeof Event.Type): LanguageModelV3StreamPart[] {
@@ -457,12 +467,25 @@ function streamParts(state: StreamState, event: typeof Event.Type): LanguageMode
           { type: "text-delta", id: "antigravity-response", delta: response },
           { type: "text-end", id: "antigravity-response" },
         ] satisfies LanguageModelV3StreamPart[])
+  const usageInput =
+    state.lastStepUsage?.input_tokens !== undefined
+      ? {
+          input_tokens: state.lastStepUsage.input_tokens,
+          output_tokens: event.result.usage.output_tokens,
+          thinking_tokens: event.result.usage.thinking_tokens,
+          cache_read_tokens: state.lastStepUsage.cache_read_tokens ?? 0,
+          total_tokens:
+            state.lastStepUsage.input_tokens +
+            (state.lastStepUsage.cache_read_tokens ?? 0) +
+            event.result.usage.output_tokens,
+        }
+      : event.result.usage
   return [
     ...closes,
     ...fallback,
     {
       type: "finish",
-      usage: usage(event.result.usage),
+      usage: usage(usageInput),
       finishReason: { unified: "stop", raw: event.result.status },
       providerMetadata: {
         antigravity: { conversationId: event.result.conversation_id },
@@ -472,6 +495,13 @@ function streamParts(state: StreamState, event: typeof Event.Type): LanguageMode
 }
 
 function stepParts(state: StreamState, step: typeof StepUpdate.Type): LanguageModelV3StreamPart[] {
+  if (step.input_tokens !== undefined || step.cache_read_tokens !== undefined) {
+    state.lastStepUsage = {
+      input_tokens: step.input_tokens,
+      cache_read_tokens: step.cache_read_tokens,
+      output_tokens: step.output_tokens,
+    }
+  }
   if (step.step_type === "agent_response") {
     if (state.desktopHost) return []
     const id = `antigravity-response-${step.step_index}`
@@ -511,12 +541,14 @@ function stepParts(state: StreamState, step: typeof StepUpdate.Type): LanguageMo
   ]
 }
 
-export function usage(input: typeof Usage.Type): LanguageModelV3Usage {
-  const cacheRead = Math.min(input.cache_read_tokens, input.input_tokens)
-  const noCache = Math.max(0, input.input_tokens - cacheRead)
+export function usage(input: typeof Usage.Type, maxContext = 2_000_000): LanguageModelV3Usage {
+  const cappedTotal = Math.min(input.input_tokens, maxContext)
+  const rawCache = Math.min(input.cache_read_tokens, cappedTotal)
+  const cacheRead = Math.min(rawCache, maxContext)
+  const noCache = Math.max(0, cappedTotal - cacheRead)
   return {
     inputTokens: {
-      total: input.input_tokens,
+      total: cappedTotal,
       noCache,
       cacheRead,
       cacheWrite: undefined,
@@ -605,9 +637,15 @@ async function prepareDesktopLaunch(state: StreamState, event: typeof Event.Type
   return event
 }
 
+export function cleanSystemPromptForAntigravity(content: string): string {
+  return content
+    .replace(/# Code Mode[\s\S]*?(?=\n(?:Project references|<available_references>|<available_skills>|Instructions from:|$))/g, "")
+    .trim()
+}
+
 export function prompt(input: LanguageModelV3Prompt, desktopHost = false) {
   const messages = input.map((message) => {
-    if (message.role === "system") return { role: message.role, content: message.content }
+    if (message.role === "system") return { role: message.role, content: cleanSystemPromptForAntigravity(message.content) }
     return {
       role: message.role,
       content: message.content.map((part) => {
