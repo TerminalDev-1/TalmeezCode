@@ -180,6 +180,8 @@ export type VoiceWebSocketTransport = { type: "websocket"; url: string; token: s
 
 export type IntegrationID = string
 
+export type ProviderUsageWindow = "weekly" | "5h"
+
 export type IntegrationMethodID = string
 
 export type IntegrationEnvMethod = { type: "env"; names: Array<string> }
@@ -663,6 +665,15 @@ export type ModelCost = {
 }
 
 export type VoiceTransport = VoiceWebRTCTransport | VoiceWebSocketTransport
+
+export type ProviderUsageBucket = {
+  id: string
+  name: string
+  description?: string
+  window: ProviderUsageWindow
+  remainingFraction: number | "Infinity" | "-Infinity" | "NaN"
+  resetTime: string
+}
 
 export type IntegrationCommandMethod = {
   id: IntegrationMethodID
@@ -1969,6 +1980,8 @@ export type ProviderInfo = {
 
 export type VoiceSessionResponse = { data: { transport: VoiceTransport } }
 
+export type ProviderUsageGroup = { name: string; description?: string; buckets: Array<ProviderUsageBucket> }
+
 export type ConnectionInfo = ConnectionCredentialInfo | ConnectionEnvInfo
 
 export type PtyCreated = {
@@ -2405,6 +2418,8 @@ export type SessionMessageAssistantTool1 = {
 export type FormFields = [FormField, ...Array<FormField>]
 
 export type CredentialValue = CredentialOAuth | CredentialKey | CredentialExternal
+
+export type ProviderUsage = { description: string; groups: Array<ProviderUsageGroup> }
 
 export type FormFields2 = [FormField1, ...Array<FormField1>]
 
@@ -5892,6 +5907,13 @@ export type ProviderGetInput = {
 }
 
 export type ProviderGetOutput = { location: LocationPublicRef; data: ProviderInfo }
+
+export type ProviderUsageInput = {
+  readonly providerID: { readonly providerID: string }["providerID"]
+  readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]
+}
+
+export type ProviderUsageOutput = { location: LocationPublicRef; data: ProviderUsage }
 
 export type IntegrationListInput = {
   readonly location?: { readonly location?: { readonly directory?: string | undefined } | undefined }["location"]

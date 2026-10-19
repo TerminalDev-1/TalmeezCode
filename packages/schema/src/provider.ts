@@ -31,6 +31,32 @@ export const Event = { Updated, Definitions: inventory(Updated) }
 export const Package = Schema.String
 export type Package = typeof Package.Type
 
+export const UsageWindow = Schema.Literals(["weekly", "5h"]).annotate({ identifier: "Provider.UsageWindow" })
+export type UsageWindow = typeof UsageWindow.Type
+
+export const UsageBucket = Schema.Struct({
+  id: Schema.String,
+  name: Schema.String,
+  description: Schema.String.pipe(optional),
+  window: UsageWindow,
+  remainingFraction: Schema.Number,
+  resetTime: Schema.String,
+}).annotate({ identifier: "Provider.UsageBucket" })
+export type UsageBucket = typeof UsageBucket.Type
+
+export const UsageGroup = Schema.Struct({
+  name: Schema.String,
+  description: Schema.String.pipe(optional),
+  buckets: Schema.Array(UsageBucket),
+}).annotate({ identifier: "Provider.UsageGroup" })
+export type UsageGroup = typeof UsageGroup.Type
+
+export const Usage = Schema.Struct({
+  description: Schema.String,
+  groups: Schema.Array(UsageGroup),
+}).annotate({ identifier: "Provider.Usage" })
+export type Usage = typeof Usage.Type
+
 export const Activation = Schema.Literals(["auto", "enabled", "disabled"])
 export type Activation = typeof Activation.Type
 

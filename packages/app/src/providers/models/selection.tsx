@@ -17,6 +17,7 @@ import { normalizeAgentList } from "@/runtime/server/global-sync/utils"
 import { useServerSDK } from "@/runtime/server/client"
 import { ScopedKey, type ServerScope } from "@/runtime/server/scope"
 import { useConfiguredModel } from "./configured"
+import { ANTIGRAVITY_PROVIDER_ID, baseAntigravityModelID, inferredAntigravityVariant } from "./usage"
 
 const ModelKeySchema = Schema.Struct({
   providerID: Schema.String,
@@ -117,9 +118,13 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
     })
 
     const validModel = (model: ModelKey) => {
+      if (!connected().has(model.providerID)) return false
       const provider = providers.all().get(model.providerID)
-
-      return !!provider?.models[model.modelID] && connected().has(model.providerID)
+      if (!provider) return false
+      if (provider.models[model.modelID]) return true
+      if (model.providerID !== ANTIGRAVITY_PROVIDER_ID) return false
+      const targetBase = baseAntigravityModelID(model.modelID).toLowerCase()
+      return Object.keys(provider.models).some((key) => baseAntigravityModelID(key).toLowerCase() === targetBase)
     }
 
     const firstModel = (...items: Array<() => ModelKey | undefined>) => {
@@ -187,7 +192,9 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
 
     const defaultModel = () => {
       for (const provider of providers.connected()) {
-        const first = Object.values(provider.models)[0]
+        const entries = Object.values(provider.models)
+        const visibleEntry = entries.find((entry) => models.visible({ providerID: provider.id, modelID: entry.id }))
+        const first = visibleEntry ?? entries[0]
 
         if (!first) continue
         const model = { providerID: provider.id, modelID: first.id }
@@ -305,14 +312,26 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
 
     const selected = () => {
       const draft = scope()
+      const currentModel = current()
 
-      if (draft?.model && validModel(draft.model)) return draft.variant
+      if (draft?.model && validModel(draft.model)) {
+        const inferred = inferredAntigravityVariant(draft.model, currentModel?.id)
+        if (draft.variant && draft.variant !== "default") return draft.variant
+        return inferred ?? draft.variant
+      }
       const session = durable()
 
       if (session?.agent && session.agent !== agent.current()?.name) return
       const value = session?.model
 
-      if (value && validModel({ providerID: value.providerID, modelID: value.id })) return value.variant ?? null
+      if (value && validModel({ providerID: value.providerID, modelID: value.id })) {
+        const inferred = inferredAntigravityVariant(
+          { providerID: value.providerID, modelID: value.id },
+          currentModel?.id,
+        )
+        if (value.variant && value.variant !== "default") return value.variant
+        return inferred ?? value.variant ?? null
+      }
     }
 
     const snapshot = () => {
@@ -498,44 +517,27 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
           const created = data.session.get(session)
           const selection = created?.model
 
-          const committed =
-            selection &&
-            sameSelection(next, {
-              agent: created.agent,
-              model: { providerID: selection.providerID, modelID: selection.id },
-              variant: selection.variant,
-            })
-              ? { choices: next.choices }
-              : next
+          const promoted = selection
+            ? {
+                ...next,
+                model: undefined,
+                variant: undefined,
+              }
+            : next
 
-          const key = handoffKey(serverSDK.scope, dir, session)
-          handoff.set(key, committed)
+          setStore("draft", undefined)
 
-          if (dir === sdk().directory) {
-            setSaved("session", session, committed)
+          if (id() === session && sdk().directory === dir) {
+            setSaved("session", session, promoted)
+
+            return
           }
 
-          setStore("promoting", committed)
-          setStore("draft", undefined)
+          setStore("promoting", promoted)
+          handoff.set(handoffKey(serverSDK.scope, dir, session), promoted)
         },
-        restore(msg: { sessionID: string; agent: string; model: ModelKey }) {
-          const session = id()
-
-          if (!session) return
-
-          if (msg.sessionID !== session) return
-
-          if (durable()?.model) return
-
-          if (saved.session[session] !== undefined) return
-
-          if (handoff.has(handoffKey(serverSDK.scope, sdk().directory, session))) return
-
-          setSaved("session", session, {
-            agent: msg.agent,
-            model: msg.model,
-            variant: msg.model?.variant ?? null,
-          })
+        restore(state: State) {
+          write(state)
         },
       },
     }
@@ -544,5 +546,4 @@ export const { use: useLocal, provider: LocalProvider } = createSimpleContext({
   },
 })
 
-export type ModelSelection = Omit<ReturnType<typeof useLocal>["model"], "trackSessionCommit"> &
-  Partial<Pick<ReturnType<typeof useLocal>["model"], "trackSessionCommit">>
+export type ModelSelection = ReturnType<typeof useLocal>["model"]

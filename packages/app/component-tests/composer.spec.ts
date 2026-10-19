@@ -286,7 +286,7 @@ story("renders a draft once and supports editing, caret restoration, and failure
   await expect(input).toHaveText("Preserve this draft on failure")
 })
 
-story("shows thinking on composer hover or when a non-default variant is selected", async ({ mount, page }) => {
+story("keeps thinking visible with or without composer hover including when default is selected", async ({ mount, page }) => {
   const component = await mount("opencode-composer-flow--model-and-variant")
   const composer = component.locator('[data-component="composer"]')
   const input = composer.getByRole("textbox", { name: "Prompt", exact: true })
@@ -301,8 +301,8 @@ story("shows thinking on composer hover or when a non-default variant is selecte
   await page.getByRole("menuitemradio", { name: "default", exact: true }).click()
   await component.getByRole("status").click()
   await expect(control).toHaveText("default")
-  await expect(control).toHaveCSS("opacity", "0")
-  await expect(control).toHaveCSS("pointer-events", "none")
+  await expect(control).toHaveCSS("opacity", "1")
+  await expect(control).toHaveCSS("pointer-events", "auto")
 
   await input.hover()
   await expect(control).toHaveCSS("opacity", "1")
@@ -310,7 +310,7 @@ story("shows thinking on composer hover or when a non-default variant is selecte
   await input.click()
   await page.mouse.move(0, 0)
   await expect(input).toBeFocused()
-  await expect(control).toHaveCSS("opacity", "0")
+  await expect(control).toHaveCSS("opacity", "1")
 
   await input.hover()
   await control.click()
@@ -328,7 +328,7 @@ story("shows thinking on composer hover or when a non-default variant is selecte
   await control.click()
   await page.getByRole("menuitemradio", { name: "default", exact: true }).click()
   await component.getByRole("status").click()
-  await expect(control).toHaveCSS("opacity", "0")
+  await expect(control).toHaveCSS("opacity", "1")
 })
 
 story("keeps default thinking accessible by keyboard without composer hover", async ({ mount, page }) => {
@@ -340,9 +340,9 @@ story("keeps default thinking accessible by keyboard without composer hover", as
   await page.getByRole("menuitemradio", { name: "default", exact: true }).click()
   await input.click()
   await page.mouse.move(0, 0)
-  await expect(control).toHaveCSS("opacity", "0")
+  await expect(control).toHaveCSS("opacity", "1")
 
-  // Tab through Add, Agent, and Model to the visually hidden thinking trigger.
+  // Tab through Add, Agent, and Model to the thinking trigger.
   for (let count = 0; count < 4; count++) await page.keyboard.press("Tab")
   await expect(control).toBeFocused()
   await expect(control).toHaveCSS("opacity", "1")
@@ -369,7 +369,7 @@ story("keeps default thinking accessible by keyboard without composer hover", as
   await expect(control).toHaveCSS("opacity", "1")
   await page.keyboard.press("Tab")
   await expect(control).not.toBeFocused()
-  await expect(control).toHaveCSS("opacity", "0")
+  await expect(control).toHaveCSS("opacity", "1")
 })
 
 story.describe("mobile variant drawer", () => {

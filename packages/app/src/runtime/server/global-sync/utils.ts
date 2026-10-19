@@ -2,6 +2,11 @@ import type { AgentListOutput, ModelListOutput, ProviderListOutput } from "@open
 import type { Agent, Project, Provider, ProviderListResponse } from "@/runtime/server/types"
 import type { Project as CurrentProject } from "@opencode/client/promise"
 import { unwrap } from "solid-js/store"
+import {
+  ANTIGRAVITY_PROVIDER_ID,
+  baseAntigravityModelID,
+  stripAntigravityReasoningSuffix,
+} from "@/providers/models/usage"
 
 export { pathKey as directoryKey, type PathKey as DirectoryKey } from "@/workspaces/path-key"
 
@@ -64,7 +69,9 @@ export function normalizeProviderList(
     })
   }
 
-  for (const model of models ?? []) {
+  const catalogModels = collapseAntigravityCatalog(models)
+
+  for (const model of catalogModels) {
     const provider = all.get(model.providerID)
 
     if (!provider || model.status === "deprecated") continue
@@ -112,7 +119,7 @@ export function normalizeProviderList(
       status: model.status,
       options: model.settings ?? {},
       headers: model.headers ?? {},
-      release_date: new Date(model.time.released).toISOString().slice(0, 10),
+      release_date: model.time.released > 0 ? new Date(model.time.released).toISOString().slice(0, 10) : "",
       variants: Object.fromEntries(model.variants.map((variant) => [variant.id, variant.settings ?? {}])),
     }
   }
@@ -122,7 +129,7 @@ export function normalizeProviderList(
     connected: providers.map((provider) => provider.id),
     default: Object.fromEntries(
       providers.flatMap((provider) => {
-        const model = models?.find((item) => item.providerID === provider.id && item.status !== "deprecated")
+        const model = catalogModels.find((item) => item.providerID === provider.id && item.status !== "deprecated")
 
         return model ? [[provider.id, model.id]] : []
       }),
@@ -136,6 +143,51 @@ export function normalizeProviderList(
   }
 
   return result
+}
+
+function collapseAntigravityCatalog(models: ModelListOutput["data"] | undefined): ModelListOutput["data"] {
+  if (!models || models.length === 0) return []
+  const antigravityIDs = new Set(
+    models.filter((item) => item.providerID === ANTIGRAVITY_PROVIDER_ID).map((item) => item.id),
+  )
+  const groups = new Map<string, ModelListOutput["data"][number][]>()
+  for (const item of models) {
+    if (item.providerID !== ANTIGRAVITY_PROVIDER_ID) continue
+    const key = baseAntigravityModelID(item.id).toLowerCase()
+    const list = groups.get(key)
+    if (list) list.push(item)
+    else groups.set(key, [item])
+  }
+  const seen = new Set<string>()
+  return models.flatMap((item) => {
+    if (item.providerID !== ANTIGRAVITY_PROVIDER_ID) return [item]
+    const key = baseAntigravityModelID(item.id).toLowerCase()
+    if (seen.has(key)) return []
+    seen.add(key)
+    const group = groups.get(key) ?? [item]
+    const picked = group.find((entry) => entry.id.toLowerCase().endsWith("-medium")) ?? group[0]!
+    const prefix = baseAntigravityModelID(picked.id)
+    const hasEffortSuffix = /^.+-(low|medium|high)$/i.test(picked.id)
+    const fallbackVariants =
+      picked.variants.length > 0
+        ? picked.variants
+        : (["low", "medium", "high"] as const)
+            .filter((effort) => antigravityIDs.has(`${prefix}-${effort}`) || hasEffortSuffix)
+            .map((effort) => ({
+              id: effort,
+              settings: {
+                reasoningEffort: effort,
+                antigravityModelID: antigravityIDs.has(`${prefix}-${effort}`) ? `${prefix}-${effort}` : picked.id,
+              },
+            }))
+    return [
+      {
+        ...picked,
+        name: stripAntigravityReasoningSuffix(picked.name),
+        variants: fallbackVariants,
+      },
+    ]
+  })
 }
 
 export function normalizeProjectInfo(project: Project | CurrentProject): Project {

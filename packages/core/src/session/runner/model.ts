@@ -79,15 +79,31 @@ const layer = Layer.effect(
           if (resolved) return resolved
           return yield* new ModelNotSelectedError({ sessionID: session.id })
         }
-        const selected = (yield* available()).find(
+        const list = yield* available()
+        const exact = list.find(
           (model) => model.providerID === session.model?.providerID && model.id === session.model.id,
         )
+        const variantMatch = exact
+          ? undefined
+          : list
+              .filter((model) => model.providerID === session.model?.providerID)
+              .flatMap((model) => {
+                const variant = model.variants.find(
+                  (item) => item.settings?.antigravityModelID === session.model?.id,
+                )
+                return variant ? [{ model, variant: variant.id }] : []
+              })[0]
+        const selected = exact ?? variantMatch?.model
         if (!selected)
           return yield* new ModelUnavailableError({
             providerID: session.model.providerID,
             modelID: session.model.id,
           })
-        return yield* resolver.resolveModel(selected, session.model.variant)
+        const effectiveVariant =
+          session.model.variant && session.model.variant !== "default"
+            ? session.model.variant
+            : (variantMatch?.variant ?? session.model.variant)
+        return yield* resolver.resolveModel(selected, effectiveVariant)
       }),
     })
   }),

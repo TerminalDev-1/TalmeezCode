@@ -30,6 +30,7 @@ export function ProviderModelIcon(props: { provider: ModelProvider; class?: stri
       props.provider.canonical,
       props.provider.canonical?.replace(/-token-plan$/, ""),
       props.provider.id.replace(/^console-/, ""),
+      props.provider.id === "google-antigravity" ? "google" : undefined,
     ].find((id): id is IconName => !!id && id !== "synthetic" && iconNames.includes(id as IconName))
 
   return (

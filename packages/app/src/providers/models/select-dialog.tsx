@@ -1,5 +1,18 @@
 import { Popover } from "@kobalte/core/popover"
-import { Component, ComponentProps, createEffect, createMemo, For, JSX, Show, Suspense, lazy, on } from "solid-js"
+import type { ProviderUsage } from "@opencode/client/promise"
+import {
+  Component,
+  ComponentProps,
+  createEffect,
+  createMemo,
+  createSignal,
+  For,
+  JSX,
+  Show,
+  Suspense,
+  lazy,
+  on,
+} from "solid-js"
 import { createStore } from "solid-js/store"
 import { createMediaQuery } from "@solid-primitives/media"
 import { useLocal, type ModelSelection } from "@/providers/models/selection"
@@ -17,6 +30,7 @@ import { TextInput } from "@opencode/ui/text-input"
 import { ModelTooltip } from "./tooltip"
 import { useLanguage } from "@/runtime/i18n/language"
 import { ExternalLink } from "@/runtime/platform/external-link"
+import { useServerSDK } from "@/runtime/server/client"
 import { useData } from "@/runtime/server/current"
 import { useWorkspaceLocation } from "@/workspaces/location"
 import { decode64 } from "@/runtime/persistence/base64"
@@ -24,6 +38,15 @@ import { handleDocumentSearchKeydown } from "@/shell/commands/search-keydown"
 import { createMenuDismissController } from "@/shell/commands/menu-dismiss"
 import { createEventListener } from "@solid-primitives/event-listener"
 import { matchesModelSearch } from "./search"
+import {
+  ANTIGRAVITY_PROVIDER_ID,
+  ANTIGRAVITY_PROVIDER_NAME,
+  type AntigravityUsageBarView,
+  type AntigravityUsageGroupView,
+  type AntigravityUsageSource,
+  bucketPercent,
+  buildAntigravityUsageGroups,
+} from "./usage"
 import { SettingsList } from "@/settings/list"
 import {
   CONSOLE_GROUP_KEY,
@@ -34,6 +57,14 @@ import {
 import { consoleProviderName } from "@/providers/catalog/console"
 import "@/settings/settings.css"
 import "./select-dialog.css"
+
+export {
+  type AntigravityUsageBarView,
+  type AntigravityUsageGroupView,
+  type AntigravityUsageSource,
+  bucketPercent,
+  buildAntigravityUsageGroups,
+}
 
 const MobilePanelDrawer = lazy(async () => {
   const { MobilePanelDrawer } = await import("@/shell/mobile-panel-drawer")
@@ -48,6 +79,198 @@ type ModelItem = ReturnType<ModelState["list"]>[number]
 const modelKey = (model: ModelItem) => `${model.provider.id}:${model.id}`
 
 const manageKey = "action:manage"
+
+export function AntigravityUsageDropdown(props: {
+  source: AntigravityUsageSource
+  defaultOpen?: boolean
+  class?: string
+}) {
+  const language = useLanguage()
+  const [open, setOpen] = createSignal(Boolean(props.defaultOpen))
+  const [loading, setLoading] = createSignal(false)
+  const [error, setError] = createSignal<string | undefined>(undefined)
+  const [usage, setUsage] = createSignal<ProviderUsage | undefined>(
+    typeof props.source === "function" ? undefined : props.source,
+  )
+
+  const load = async (force = false) => {
+    if (typeof props.source !== "function") {
+      setUsage(props.source)
+      setError(undefined)
+      return
+    }
+    if (loading()) return
+    if (usage() && !force) return
+
+    setLoading(true)
+    setError(undefined)
+    try {
+      const next = await props.source()
+      setUsage(next)
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err))
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  createEffect(() => {
+    if (typeof props.source !== "function") {
+      setUsage(props.source)
+      setError(undefined)
+      return
+    }
+    if (open() && !usage() && !loading() && !error()) {
+      void load()
+    }
+  })
+
+  const toggle = () => {
+    const next = !open()
+    setOpen(next)
+    if (next && !usage() && !loading()) {
+      void load()
+    }
+  }
+
+  return (
+    <div data-slot="model-selector-usage" class={props.class ?? "flex flex-col"}>
+      <button
+        type="button"
+        data-slot="model-selector-usage-toggle"
+        aria-expanded={open()}
+        class="flex min-h-9 w-full items-center gap-2 px-3 py-1.5 text-left text-[13px] font-[440] leading-5 text-v2-text-text-base transition-colors hover:bg-v2-overlay-simple-overlay-hover focus-visible:bg-v2-overlay-simple-overlay-hover focus-visible:outline-none"
+        onClick={toggle}
+      >
+        <ProviderModelIcon
+          provider={{ id: ANTIGRAVITY_PROVIDER_ID, name: ANTIGRAVITY_PROVIDER_NAME }}
+          class="shrink-0"
+        />
+        <span class="min-w-0 flex-1 truncate">{language.t("dialog.model.usage.view")}</span>
+        <Icon
+          name="chevron-down"
+          size="small"
+          class="shrink-0 text-v2-icon-icon-muted transition-transform"
+          classList={{ "-rotate-90": !open() }}
+        />
+      </button>
+      <Show when={open()}>
+        <div
+          data-slot="model-selector-usage-content"
+          class="flex max-h-[240px] flex-col gap-3 overflow-y-auto border-t border-v2-border-border-muted px-3 py-2.5 text-[12px] leading-4 text-v2-text-text-base"
+        >
+          <Show when={loading() && !usage()}>
+            <div class="py-1 text-v2-text-text-muted">{language.t("dialog.model.usage.loading")}</div>
+          </Show>
+          <Show when={error() && !usage()}>
+            <div class="flex items-center justify-between gap-2 py-1 text-v2-text-text-muted">
+              <span class="min-w-0 truncate">{language.t("dialog.model.usage.error")}</span>
+              <button
+                type="button"
+                class="shrink-0 rounded-sm px-1.5 py-0.5 text-[12px] font-[530] text-v2-text-text-base hover:bg-v2-overlay-simple-overlay-hover"
+                onClick={() => void load(true)}
+              >
+                {language.t("dialog.model.usage.retry")}
+              </button>
+            </div>
+          </Show>
+          <Show when={usage()}>
+            {(data) => (
+              <For each={buildAntigravityUsageGroups(data())}>
+                {(group) => (
+                  <div data-slot="model-selector-usage-group" data-group-name={group.name} class="flex flex-col gap-1.5">
+                    <div class="font-[530] text-v2-text-text-base">{group.name}</div>
+                    <div data-slot="model-selector-usage-bar" data-window="weekly" class="flex flex-col gap-1">
+                      <div class="flex items-center justify-between gap-2 text-[11px] text-v2-text-text-muted">
+                        <span>{language.t("dialog.model.usage.weekly")}</span>
+                        <span class="tabular-nums">
+                          {language.t("dialog.model.usage.remaining", { percent: group.weekly.percent })}
+                        </span>
+                      </div>
+                      <div
+                        role="progressbar"
+                        aria-label={`${group.name} - ${language.t("dialog.model.usage.weekly")}`}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-valuenow={group.weekly.percent}
+                        class="h-1.5 w-full overflow-hidden rounded-full bg-v2-border-border-muted"
+                      >
+                        <div
+                          class="h-full rounded-full bg-v2-icon-icon-base transition-all"
+                          style={{ width: `${group.weekly.percent}%` }}
+                        />
+                      </div>
+                      <Show when={group.weekly.resetTime}>
+                        {(time) => (
+                          <div class="text-[10px] text-v2-text-text-faint">
+                            {language.t("dialog.model.usage.resets", { time: time() })}
+                          </div>
+                        )}
+                      </Show>
+                    </div>
+                    <div data-slot="model-selector-usage-bar" data-window="5h" class="flex flex-col gap-1">
+                      <Show
+                        when={!group.fiveHour.separateWeeklyOnly}
+                        fallback={
+                          <>
+                            <div class="flex items-center justify-between gap-2 text-[11px] text-v2-text-text-muted">
+                              <span>{language.t("dialog.model.usage.fiveHour")}</span>
+                              <span>{language.t("dialog.model.usage.weeklyOnly")}</span>
+                            </div>
+                            <div
+                              role="progressbar"
+                              aria-label={`${group.name} - ${language.t("dialog.model.usage.fiveHour")}`}
+                              aria-valuemin={0}
+                              aria-valuemax={100}
+                              aria-valuenow={group.fiveHour.percent}
+                              class="h-1.5 w-full overflow-hidden rounded-full bg-v2-border-border-muted opacity-50"
+                            >
+                              <div
+                                class="h-full rounded-full bg-v2-icon-icon-muted transition-all"
+                                style={{ width: `${group.fiveHour.percent}%` }}
+                              />
+                            </div>
+                          </>
+                        }
+                      >
+                        <div class="flex items-center justify-between gap-2 text-[11px] text-v2-text-text-muted">
+                          <span>{language.t("dialog.model.usage.fiveHour")}</span>
+                          <span class="tabular-nums">
+                            {language.t("dialog.model.usage.remaining", { percent: group.fiveHour.percent })}
+                          </span>
+                        </div>
+                        <div
+                          role="progressbar"
+                          aria-label={`${group.name} - ${language.t("dialog.model.usage.fiveHour")}`}
+                          aria-valuemin={0}
+                          aria-valuemax={100}
+                          aria-valuenow={group.fiveHour.percent}
+                          class="h-1.5 w-full overflow-hidden rounded-full bg-v2-border-border-muted"
+                        >
+                          <div
+                            class="h-full rounded-full bg-v2-icon-icon-base transition-all"
+                            style={{ width: `${group.fiveHour.percent}%` }}
+                          />
+                        </div>
+                        <Show when={group.fiveHour.resetTime}>
+                          {(time) => (
+                            <div class="text-[10px] text-v2-text-text-faint">
+                              {language.t("dialog.model.usage.resets", { time: time() })}
+                            </div>
+                          )}
+                        </Show>
+                      </Show>
+                    </div>
+                  </div>
+                )}
+              </For>
+            )}
+          </Show>
+        </div>
+      </Show>
+    </div>
+  )
+}
 
 const sortModelGroups = (a: { category: string; items: ModelItem[] }, b: { category: string; items: ModelItem[] }) => {
   const aIndex = popularProviders.indexOf(a.category)
@@ -264,6 +487,7 @@ export function ModelSelectorPopover(props: {
   const dialog = useDialog()
   const mobile = createMediaQuery("(max-width: 767px)")
   const data = useData()
+  const sdk = useServerSDK()
   const location = useWorkspaceLocation()
 
   const controller = createModelSelectorController({
@@ -281,6 +505,23 @@ export function ModelSelectorPopover(props: {
 
     return connection?.type === "credential" && connection.method === "oauth"
   }
+
+  const hasAntigravity = createMemo(
+    () =>
+      controller.current()?.startsWith(`${ANTIGRAVITY_PROVIDER_ID}:`) ||
+      controller.all().some((item) => item.provider.id === ANTIGRAVITY_PROVIDER_ID),
+  )
+
+  const antigravityUsage = createMemo<AntigravityUsageSource | undefined>(() => {
+    if (!hasAntigravity()) return undefined
+    return async () => {
+      const response = await sdk.api.provider.usage({
+        providerID: ANTIGRAVITY_PROVIDER_ID,
+        location: location().ref,
+      })
+      return response.data
+    }
+  })
 
   const manage = async () => {
     const { DialogManageModels } = await import("./manage")
@@ -303,6 +544,7 @@ export function ModelSelectorPopover(props: {
           groups={controller.groups}
           current={controller.current()}
           chatgptPlan={chatgptPlan()}
+          antigravityUsage={antigravityUsage()}
           select={controller.select}
           onManage={manage}
           onClose={() => props.onClose?.()}
@@ -315,6 +557,7 @@ export function ModelSelectorPopover(props: {
         provider={props.provider}
         onConnect={props.unpaid ? connect : undefined}
         chatgptPlan={chatgptPlan()}
+        antigravityUsage={antigravityUsage()}
         onClose={() => props.onClose?.()}
         onManage={manage}
       />
@@ -327,6 +570,7 @@ function ModelSelectorDrawer(props: {
   model?: ModelState
   provider?: string
   chatgptPlan?: boolean
+  antigravityUsage?: AntigravityUsageSource
   onClose: () => void
   onManage: () => void
   onConnect?: () => void
@@ -437,6 +681,13 @@ function ModelSelectorDrawer(props: {
                     </ExternalLink>
                   </div>
                 </Show>
+                <Show when={props.antigravityUsage}>
+                  {(source) => (
+                    <div class="border-t border-v2-border-border-muted">
+                      <AntigravityUsageDropdown source={source()} />
+                    </div>
+                  )}
+                </Show>
               </div>
             </div>
           </MobilePanelDrawer>
@@ -499,6 +750,8 @@ export function ModelSelectorPopoverView(props: {
   groups: (models: ModelItem[]) => { category: string; items: ModelItem[] }[]
   current: string | undefined
   chatgptPlan?: boolean
+  antigravityUsage?: AntigravityUsageSource
+  antigravityUsageDefaultOpen?: boolean
   select: (item: ModelItem) => void
   onManage: () => void
   onClose: () => void
@@ -613,7 +866,10 @@ export function ModelSelectorPopoverView(props: {
         <Menu.Content
           ref={(element: HTMLDivElement) => (contentRef = element)}
           class="w-[284px] max-w-[calc(100vw-16px)] overflow-hidden rounded-md border-0 bg-v2-background-bg-layer-01 !p-0 shadow-[var(--v2-elevation-floating)] focus:outline-none"
-          classList={{ "!w-[320px]": props.chatgptPlan }}
+          classList={{
+            "!w-[320px]": props.chatgptPlan && !props.antigravityUsage,
+            "!w-[340px]": Boolean(props.antigravityUsage),
+          }}
           onPointerDownOutside={dismiss.preventTriggerRestore}
           onFocusOutside={dismiss.preventTriggerRestore}
           onCloseAutoFocus={dismiss.onCloseAutoFocus}
@@ -790,6 +1046,14 @@ export function ModelSelectorPopoverView(props: {
               </ExternalLink>
             </div>
           </Show>
+          <Show when={props.antigravityUsage}>
+            {(source) => (
+              <>
+                <div class="h-px bg-v2-border-border-muted" />
+                <AntigravityUsageDropdown source={source()} defaultOpen={props.antigravityUsageDefaultOpen} />
+              </>
+            )}
+          </Show>
         </Menu.Content>
       </Menu.Portal>
     </Menu>
@@ -800,7 +1064,32 @@ export const DialogSelectModel: Component<{ provider?: string; model?: ModelStat
   const dialog = useDialog()
   const language = useLanguage()
   const local = useLocal()
+  const sdk = useServerSDK()
+  const location = useWorkspaceLocation()
   const directory = () => decode64(local.slug())
+
+  const controller = createModelSelectorController({
+    model: props.model,
+    provider: () => props.provider,
+    onSelect: () => dialog.close(),
+  })
+
+  const hasAntigravity = createMemo(
+    () =>
+      controller.current()?.startsWith(`${ANTIGRAVITY_PROVIDER_ID}:`) ||
+      controller.all().some((item) => item.provider.id === ANTIGRAVITY_PROVIDER_ID),
+  )
+
+  const antigravityUsage = createMemo<AntigravityUsageSource | undefined>(() => {
+    if (!hasAntigravity()) return undefined
+    return async () => {
+      const response = await sdk.api.provider.usage({
+        providerID: ANTIGRAVITY_PROVIDER_ID,
+        location: location().ref,
+      })
+      return response.data
+    }
+  })
 
   const provider = () => {
     void import("@/providers/connect/dialog").then((x) => {
@@ -824,6 +1113,13 @@ export const DialogSelectModel: Component<{ provider?: string; model?: ModelStat
       </DialogHeader>
       <DialogBody class="flex min-h-0 flex-1 flex-col">
         <ModelList provider={props.provider} model={props.model} onSelect={() => dialog.close()} />
+        <Show when={antigravityUsage()}>
+          {(source) => (
+            <div class="shrink-0 border-t border-v2-border-border-muted px-4 py-1">
+              <AntigravityUsageDropdown source={source()} />
+            </div>
+          )}
+        </Show>
         <div class="shrink-0 border-t border-v2-border-border-muted px-4 py-3">
           <button
             type="button"

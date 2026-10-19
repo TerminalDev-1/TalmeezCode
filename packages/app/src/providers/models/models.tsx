@@ -3,6 +3,14 @@ import { filter, firstBy, flat, groupBy, mapValues, pipe, uniqueBy, values } fro
 import { createSimpleContext } from "@opencode/ui/context"
 import { useProviders } from "@/providers/catalog/providers"
 import { useGlobal } from "@/runtime/server/runtime"
+import {
+  ANTIGRAVITY_PROVIDER_ID,
+  baseAntigravityModelID,
+  isDefaultDisabledModel,
+  isGeminiModelKey,
+} from "./usage"
+
+export { isDefaultDisabledModel, isGeminiModelKey }
 
 export type ModelKey = { providerID: string; modelID: string }
 
@@ -91,7 +99,14 @@ const createModelsController = (directory: Accessor<string | undefined>) => {
     })),
   )
 
-  const find = (key: ModelKey) => list().find((m) => m.id === key.modelID && m.provider.id === key.providerID)
+  const find = (key: ModelKey) => {
+    const exact = list().find((m) => m.id === key.modelID && m.provider.id === key.providerID)
+    if (exact || key.providerID !== ANTIGRAVITY_PROVIDER_ID) return exact
+    const targetBase = baseAntigravityModelID(key.modelID).toLowerCase()
+    return list().find(
+      (m) => m.provider.id === key.providerID && baseAntigravityModelID(m.id).toLowerCase() === targetBase,
+    )
+  }
 
   function update(model: ModelKey, state: Visibility) {
     const index = store.user.findIndex((x) => x.modelID === model.modelID && x.providerID === model.providerID)
@@ -113,10 +128,23 @@ const createModelsController = (directory: Accessor<string | undefined>) => {
 
     if (state === "show") return true
 
+    const info = find(model)
+    if (isDefaultDisabledModel({ modelID: model.modelID, family: info?.family, name: info?.name })) {
+      return false
+    }
+
+    if (isGeminiModelKey({ modelID: model.modelID, family: info?.family, name: info?.name })) {
+      return true
+    }
+
+    if (model.providerID === "google-antigravity") return true
+
     if (latestSet().has(key)) return true
 
-    // Models without a parseable release date stay visible.
-    return !Number.isFinite(release().get(key) ?? NaN)
+    const released = release().get(key) ?? NaN
+
+    // Models without a parseable release date or with epoch-0 default stay visible.
+    return !Number.isFinite(released) || released <= 0
   }
 
   const setVisibility = (model: ModelKey, state: boolean) => {

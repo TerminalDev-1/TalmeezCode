@@ -4,6 +4,7 @@ import { App } from "@opencode/core/app"
 import { LayerNode } from "@opencode/util/effect/layer-node"
 import { Node } from "@opencode/util/effect/app-node"
 import { httpClient } from "@opencode/util/effect/app-node-platform"
+import { AppProcess } from "@opencode/util/process"
 import { AppNodeBuilder } from "@opencode/core/effect/app-node-builder"
 import { Bus } from "@opencode/core/bus"
 import { EventLogger } from "@opencode/core/event-logger"
@@ -51,6 +52,7 @@ import type { ServerOptions } from "./options"
 
 const applicationServiceNodes = [
   Global.node,
+  AppProcess.node,
   Database.node,
   Bus.node,
   EventLogger.node,
@@ -165,6 +167,7 @@ function makeRoutes<AuthError, AuthServices>(
       const requestServices = Layer.merge(
         Layer.succeedContext(
           Context.pick(
+            AppProcess.Service,
             Database.Service,
             Credential.Service,
             PermissionSaved.Service,

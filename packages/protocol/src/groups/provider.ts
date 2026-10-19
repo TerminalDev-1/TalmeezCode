@@ -37,6 +37,22 @@ export const ProviderGroup = HttpApiGroup.make("server.provider")
         }),
       ),
   )
+  .add(
+    HttpApiEndpoint.get("provider.usage", "/api/provider/:providerID/usage", {
+      params: { providerID: Provider.ID },
+      query: LocationQuery,
+      success: Location.response(Provider.Usage),
+      error: [ProviderNotFoundError, ServiceUnavailableError],
+    })
+      .annotateMerge(locationQueryOpenApi)
+      .annotateMerge(
+        OpenApi.annotations({
+          identifier: "provider.usage",
+          summary: "Get provider usage",
+          description: "Retrieve the current authenticated subscription quota for a provider.",
+        }),
+      ),
+  )
   .annotateMerge(
     OpenApi.annotations({
       title: "provider",

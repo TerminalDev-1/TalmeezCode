@@ -186,7 +186,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
       <form
         data-component="composer"
         data-dock-border-underlay={props.borderUnderlay ? "true" : undefined}
-        class="group/composer relative min-h-[96px] w-full overflow-clip rounded-xl bg-v2-background-bg-base"
+        class="group/composer relative min-h-[140px] w-full overflow-clip rounded-xl bg-v2-background-bg-base"
         classList={{
           "shadow-[var(--v2-elevation-raised)]": !props.borderUnderlay,
         }}
@@ -219,7 +219,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
 
         <ScrollView
           data-component="composer-scroll"
-          class="min-h-[60px] max-h-[180px]"
+          class="min-h-[96px] max-h-[240px]"
           viewportRef={(element) => {
             viewport = element
             element.tabIndex = -1
@@ -241,7 +241,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
             spellcheck={state.mode === "normal"}
             // @ts-expect-error
             autocomplete="off"
-            class="relative z-10 block min-h-[60px] w-full whitespace-pre-wrap bg-transparent px-4 pt-4 pb-2 text-[13px] font-[440] leading-5 text-v2-text-text-base focus:outline-none [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
+            class="relative z-10 block min-h-[96px] w-full whitespace-pre-wrap bg-transparent px-5 pt-4 pb-3 text-[14px] font-[440] leading-6 text-v2-text-text-base focus:outline-none [&_[data-mention=file]]:text-syntax-property [&_[data-mention=agent]]:text-syntax-type [&_[data-mention=reference]]:text-syntax-keyword"
             classList={{ "font-mono!": state.mode === "shell", "opacity-50": props.disabled }}
             style={{
               "unicode-bidi": state.mode === "normal" ? "plaintext" : undefined,
@@ -297,7 +297,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
           <Show when={!props.controller.value()}>
             <div
               dir={state.mode === "normal" ? "auto" : "ltr"}
-              class="pointer-events-none absolute inset-x-0 top-0 px-4 pt-4 text-[13px] font-[440] leading-5 text-v2-text-text-faint"
+              class="pointer-events-none absolute inset-x-0 top-0 px-5 pt-4 text-[14px] font-[440] leading-6 text-v2-text-text-faint"
               classList={{ "font-mono!": state.mode === "shell" }}
               style={{ "unicode-bidi": state.mode === "normal" ? "plaintext" : undefined, "text-align": "start" }}
             >
@@ -309,7 +309,7 @@ export function ComposerEditor(props: ComposerEditorProps) {
           </Show>
         </ScrollView>
 
-        <div class="flex h-11 items-center px-2">
+        <div class="flex h-12 items-center px-2">
           <div
             class="flex shrink-0 items-center"
             aria-hidden={state.mode === "shell"}
@@ -353,20 +353,21 @@ export function ComposerEditor(props: ComposerEditorProps) {
                 )}
               </Show>
               <Show when={props.modelControlsVisible ?? true}>
-                {props.modelControl}
-                <Show when={view.variant} keyed>
-                  {(control) => (
-                    <Show when={control.options().length > 1}>
-                      <ComposerEditorConfiguredSelect
-                        mobileDrawer
-                        title={i18n.t("ui.promptInput.chooseVariant")}
-                        keybind={["Shift", "Mod", "D"]}
-                        control={control}
-                        class={control.current() === "default" ? "composer-variant-default" : undefined}
-                      />
-                    </Show>
-                  )}
-                </Show>
+                <div class="mx-auto flex items-center justify-center gap-1">
+                  {props.modelControl}
+                  <Show when={view.variant} keyed>
+                    {(control) => (
+                      <Show when={control.options().length > 1}>
+                        <ComposerEditorConfiguredSelect
+                          mobileDrawer
+                          title={i18n.t("ui.promptInput.chooseVariant")}
+                          keybind={["Shift", "Mod", "D"]}
+                          control={control}
+                        />
+                      </Show>
+                    )}
+                  </Show>
+                </div>
               </Show>
             </div>
           </div>
@@ -870,7 +871,7 @@ export function ComposerEditorSelect(props: {
   const content = () => (
     <>
       {props.currentIcon}
-      <span class="truncate capitalize leading-5">
+      <span class="truncate text-center capitalize leading-5">
         {props.options.find((option) => option.id === props.current)?.label ?? props.current}
       </span>
       <span class="-ms-0.5 -me-1 flex shrink-0">
@@ -898,7 +899,7 @@ export function ComposerEditorSelect(props: {
               as={Button}
               variant="ghost-muted"
               size="normal"
-              class={`max-w-[220px] justify-start ![font-weight:440] ${props.class ?? ""}`}
+              class={`max-w-[220px] justify-center text-center ![font-weight:440] ${props.class ?? ""}`}
               aria-label={props.title}
             >
               {content()}
@@ -925,7 +926,7 @@ export function ComposerEditorSelect(props: {
           }}
           variant="ghost-muted"
           size="normal"
-          class={`max-w-[220px] justify-start ![font-weight:440] ${props.class ?? ""}`}
+          class={`max-w-[220px] justify-center text-center ![font-weight:440] ${props.class ?? ""}`}
           aria-label={props.title}
           aria-haspopup="dialog"
           aria-expanded={store.open}

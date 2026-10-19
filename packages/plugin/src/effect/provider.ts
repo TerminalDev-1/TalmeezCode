@@ -27,7 +27,7 @@ export interface ProviderEditor {
   }
 }
 
-export interface ProviderDomain extends ProviderApi<unknown> {
+export interface ProviderDomain extends Pick<ProviderApi<unknown>, "list" | "get"> {
   readonly transform: Transform<ProviderEditor>
   readonly reload: () => Effect.Effect<void>
 }

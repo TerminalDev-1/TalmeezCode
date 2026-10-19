@@ -1458,9 +1458,17 @@ export type ProviderGetInput = {
 export type ProviderGetOutput = { readonly location: Location.PublicRef; readonly data: Provider.Info }
 export type ProviderGetOperation<E = never> = (input: ProviderGetInput) => Effect.Effect<ProviderGetOutput, E>
 
+export type ProviderUsageInput = {
+  readonly providerID: Provider.ID
+  readonly location?: { readonly directory?: string | undefined } | undefined
+}
+export type ProviderUsageOutput = { readonly location: Location.PublicRef; readonly data: Provider.Usage }
+export type ProviderUsageOperation<E = never> = (input: ProviderUsageInput) => Effect.Effect<ProviderUsageOutput, E>
+
 export interface ProviderApi<E = never> {
   readonly list: ProviderListOperation<E>
   readonly get: ProviderGetOperation<E>
+  readonly usage: ProviderUsageOperation<E>
 }
 
 export type IntegrationListInput = { readonly location?: { readonly directory?: string | undefined } | undefined }

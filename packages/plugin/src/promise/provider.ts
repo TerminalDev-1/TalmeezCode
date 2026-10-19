@@ -27,7 +27,7 @@ export interface ProviderEditor {
   }
 }
 
-export interface ProviderDomain extends ProviderApi {
+export interface ProviderDomain extends Pick<ProviderApi, "list" | "get"> {
   readonly transform: Transform<ProviderEditor>
   readonly reload: () => Promise<void>
 }

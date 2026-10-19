@@ -9,7 +9,7 @@ export function Wordmark(
   return (
     <svg
       xmlns="http://www.w3.org/2000/svg"
-      viewBox="0 0 720 129"
+      viewBox="0 0 324 42"
       fill="none"
       classList={{
         [props.class ?? ""]: !!props.class,
@@ -24,46 +24,71 @@ export function Wordmark(
             stroke={props.outline ? "currentColor" : undefined}
             stroke-width={props.outline ? 1 : undefined}
           >
-            <path
-              pathLength={props.outline ? 1 : undefined}
-              d="M55.3846 36.4286H18.4615V91.7143H55.3846V36.4286ZM73.8462 110.143H0V18H73.8462V110.143Z"
-            />
-            <path
-              pathLength={props.outline ? 1 : undefined}
-              d="M110.462 91.7143H147.385V36.4286H110.462V91.7143ZM165.846 110.143H110.462V128.571H92V18H165.846V110.143Z"
-            />
-            <path
-              pathLength={props.outline ? 1 : undefined}
-              d="M258.846 73.2857H203.462V91.7143H258.846V110.143H185V18H258.846V73.2857ZM203.462 54.8571H240.385V36.4286H203.462V54.8571Z"
-            />
-            <path
-              pathLength={props.outline ? 1 : undefined}
-              d="M332.385 36.4286H295.462V110.143H277V18H332.385V36.4286ZM350.846 110.143H332.385V36.4286H350.846V110.143Z"
-            />
-            <path
-              pathLength={props.outline ? 1 : undefined}
-              d="M442.846 36.4286H387.462V91.7143H442.846V110.143H369V18H442.846V36.4286Z"
-            />
-            <path
-              pathLength={props.outline ? 1 : undefined}
-              d="M517.385 36.4286H480.462V91.7143H517.385V36.4286ZM535.846 110.143H462V18H535.846V110.143Z"
-            />
-            <path
-              pathLength={props.outline ? 1 : undefined}
-              d="M609.385 36.8571H572.462V92.1429H609.385V36.8571ZM627.846 110.571H554V18.4286H609.385V0H627.846V110.571Z"
-            />
-            <path
-              pathLength={props.outline ? 1 : undefined}
-              d="M664.462 36.4286V54.8571H701.385V36.4286H664.462ZM719.846 73.2857H664.462V91.7143H719.846V110.143H646V18H719.846V73.2857Z"
-            />
+            <g transform="translate(0, 0)">
+              <path
+                pathLength={props.outline ? 1 : undefined}
+                d="M24 12H12V30H24V36H6V12H0V6H6V0H12V6H24V12Z"
+              />
+            </g>
+            <g transform="translate(30, 0)">
+              <path
+                pathLength={props.outline ? 1 : undefined}
+                d="M18 24H6V30H18V24ZM24 36H0V18H18V12H0V6H24V36Z"
+              />
+            </g>
+            <g transform="translate(60, 0)">
+              <path pathLength={props.outline ? 1 : undefined} d="M12 30H24V36H6V0H12V30Z" />
+            </g>
+            <g transform="translate(90, 0)">
+              <path
+                pathLength={props.outline ? 1 : undefined}
+                d="M24 36H18V12H15V36H9V12H6V36H0V6H24V36Z"
+              />
+            </g>
+            <g transform="translate(120, 0)">
+              <path
+                pathLength={props.outline ? 1 : undefined}
+                d="M24 24H6V30H24V36H0V6H24V24ZM6 18H18V12H6V18Z"
+              />
+            </g>
+            <g transform="translate(150, 0)">
+              <path
+                pathLength={props.outline ? 1 : undefined}
+                d="M24 24H6V30H24V36H0V6H24V24ZM6 18H18V12H6V18Z"
+              />
+            </g>
+            <g transform="translate(180, 0)">
+              <path
+                pathLength={props.outline ? 1 : undefined}
+                d="M24 18H18V24H12V30H24V36H0V24H6V18H12V12H0V6H24V18Z"
+              />
+            </g>
+            <g transform="translate(210, 0)">
+              <path pathLength={props.outline ? 1 : undefined} d="M24 12H6V30H24V36H0V6H24V12Z" />
+            </g>
+            <g transform="translate(240, 0)">
+              <path pathLength={props.outline ? 1 : undefined} d="M18 12H6V30H18V12ZM24 36H0V6H24V36Z" />
+            </g>
+            <g transform="translate(270, 0)">
+              <path
+                pathLength={props.outline ? 1 : undefined}
+                d="M18 12H6V30H18V12ZM24 36H0V6H18V0H24V36Z"
+              />
+            </g>
+            <g transform="translate(300, 0)">
+              <path
+                pathLength={props.outline ? 1 : undefined}
+                d="M6 12V18H18V12H6ZM24 24H6V30H24V36H0V6H24V24Z"
+              />
+            </g>
           </g>
         </g>
       </g>
       <defs>
-        <mask id={mask} style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="720" height="129">
-          <rect width="720" height="129" fill={`url(#${maskGradient})`} />
+        <mask id={mask} style="mask-type:alpha" maskUnits="userSpaceOnUse" x="0" y="0" width="324" height="42">
+          <rect width="324" height="42" fill={`url(#${maskGradient})`} />
         </mask>
-        <linearGradient id={maskGradient} x1="360" y1="68" x2="360" y2="129" gradientUnits="userSpaceOnUse">
+        <linearGradient id={maskGradient} x1="162" y1="22" x2="162" y2="42" gradientUnits="userSpaceOnUse">
           <stop stop-color="white" stop-opacity="0.7" />
           <stop offset="1" stop-color="white" stop-opacity="0" />
         </linearGradient>

@@ -1,5 +1,6 @@
 import { Provider } from "@opencode/core/provider"
-import { ProviderNotFoundError } from "@opencode/protocol/errors"
+import { getUsage } from "@opencode/core/plugin/provider/antigravity-cli"
+import { ProviderNotFoundError, ServiceUnavailableError } from "@opencode/protocol/errors"
 import { Effect } from "effect"
 import { HttpApiBuilder } from "effect/http-api"
 import { Api } from "../api"
@@ -26,6 +27,26 @@ export const ProviderHandler = HttpApiBuilder.group(Api, "server.provider", (han
               message: `Provider not found: ${ctx.params.providerID}`,
             })
           return yield* response(Effect.succeed(provider))
+        }),
+      )
+      .handle(
+        "provider.usage",
+        Effect.fn(function* (ctx) {
+          const providers = yield* Provider.Service
+          const provider = yield* providers.get(ctx.params.providerID)
+          if (!provider || ctx.params.providerID !== "google-antigravity")
+            return yield* new ProviderNotFoundError({
+              providerID: ctx.params.providerID,
+              message: `Provider usage not found: ${ctx.params.providerID}`,
+            })
+          return yield* response(
+            getUsage().pipe(
+              Effect.mapError(
+                (error) =>
+                  new ServiceUnavailableError({ service: "Antigravity usage", message: String(error) }),
+              ),
+            ),
+          )
         }),
       )
   }),
