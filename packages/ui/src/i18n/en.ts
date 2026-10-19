@@ -130,6 +130,8 @@ const source = {
   "ui.messagePart.context.match.other": "({{count}} matches)",
   "ui.messagePart.tools.used.one": "Used {{count}} {{tools}}",
   "ui.messagePart.tools.used.other": "Used {{count}} {{tools}}",
+  "ui.messagePart.tools.workedFor": "Worked for {{duration}}",
+  "ui.messagePart.tools.workingFor": "Working for {{duration}}",
 
   "ui.list.loading": "Loading",
   "ui.list.empty": "No results",

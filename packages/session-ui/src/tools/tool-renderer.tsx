@@ -455,7 +455,7 @@ function ExaOutput(props: { output?: string }) {
 export type ContextGroupPart =
   | SessionMessageAssistantTool
   | (SessionMessageAssistantReasoning & { id: string; streaming?: boolean })
-  | { type: "notice" | "shell"; id: string; render: () => JSX.Element }
+  | { type: "notice" | "shell"; id: string; time?: { created: number; completed?: number }; render: () => JSX.Element }
 
 export function CurrentContextToolGroup(props: {
   parts: ContextGroupPart[]
@@ -492,17 +492,93 @@ export function CurrentContextToolGroup(props: {
     ]),
   )
 
+  const [now, setNow] = createSignal(Date.now())
+
+  createEffect(() => {
+    if (!pending()) return
+    const timer = setInterval(() => setNow(Date.now()), 1000)
+    onCleanup(() => clearInterval(timer))
+  })
+
+  const duration = createMemo(() => {
+    const starts: number[] = []
+    const ends: number[] = []
+
+    for (const part of props.parts) {
+      if ("time" in part && part.time) {
+        const time = part.time
+        const start =
+          "ran" in time && typeof time.ran === "number" && time.ran > 0
+            ? time.ran
+            : typeof time.created === "number" && time.created > 0
+              ? time.created
+              : undefined
+        if (start !== undefined) starts.push(start)
+
+        if (typeof time.completed === "number" && time.completed > 0) {
+          ends.push(time.completed)
+        }
+      }
+    }
+
+    if (starts.length === 0) return undefined
+    const start = Math.min(...starts)
+
+    if (pending()) {
+      return Math.max(0, Math.round((now() - start) / 1000))
+    }
+
+    if (ends.length === 0) return 0
+    const end = Math.max(...ends)
+    return Math.max(0, Math.round((end - start) / 1000))
+  })
+
+  const formattedDuration = createMemo(() => {
+    const total = duration()
+    if (total === undefined) return undefined
+    const numfmt = new Intl.NumberFormat(i18n.locale())
+    if (total < 60) {
+      return i18n.t("ui.message.duration.seconds", { count: numfmt.format(total) })
+    }
+    return i18n.t("ui.message.duration.minutesSeconds", {
+      minutes: numfmt.format(Math.floor(total / 60)),
+      seconds: numfmt.format(total % 60),
+    })
+  })
+
   const label = createMemo(() => {
     const thoughts = props.parts.filter((part) => part.type === "reasoning").length
+    const dur = formattedDuration()
 
     if (!names() && !thoughts) {
+      if (dur !== undefined) {
+        const text = pending()
+          ? i18n.t("ui.messagePart.tools.workingFor", { duration: dur })
+          : i18n.t("ui.messagePart.tools.workedFor", { duration: dur })
+        return { text, title: "", before: text, count: undefined, between: "", after: "" }
+      }
       const text = i18n.t("ui.messagePart.context.updates")
-
       return { text, title: "", before: text, count: undefined, between: "", after: "" }
     }
 
     const title = names() || i18n.plural("ui.messagePart.context.thought", thoughts)
     const count = props.parts.filter((part) => part.type === "tool" || part.type === "shell").length || thoughts
+
+    if (dur !== undefined) {
+      const statusText = pending()
+        ? i18n.t("ui.messagePart.tools.workingFor", { duration: dur })
+        : i18n.t("ui.messagePart.tools.workedFor", { duration: dur })
+      const text = `${statusText} · ${title}`
+      return {
+        text,
+        title,
+        before: `${statusText} · `,
+        count: undefined,
+        between: "",
+        after: "",
+      }
+    }
+
     const text = i18n.plural("ui.messagePart.tools.used", count, { tools: title })
     const index = text.indexOf(title)
     const before = text.slice(0, index).trim()
