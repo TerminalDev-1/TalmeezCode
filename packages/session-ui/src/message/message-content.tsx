@@ -700,7 +700,7 @@ export function AssistantTextContent(props: {
             : -1
 
     if (!(ms >= 0)) return ""
-    const total = Math.round(ms / 1000)
+    const total = Math.max(1, Math.round(ms / 1000))
 
     if (total < 60) return i18n.t("ui.message.duration.seconds", { count: numfmt().format(total) })
 
@@ -778,7 +778,7 @@ export function AssistantReasoningContent(props: {
     const time = props.content.time
 
     if (time?.completed === undefined) return undefined
-    const total = Math.max(0, Math.round((time.completed - time.created) / 1000))
+    const total = Math.max(1, Math.round((time.completed - time.created) / 1000))
     const numfmt = new Intl.NumberFormat(i18n.locale())
 
     if (total < 60) return i18n.t("ui.message.duration.seconds", { count: numfmt.format(total) })

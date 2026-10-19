@@ -535,24 +535,25 @@ export function CurrentContextToolGroup(props: {
     const start = Math.min(...starts)
 
     if (pending()) {
-      return Math.max(0, Math.round((now() - start) / 1000))
+      return Math.max(1, Math.round((now() - start) / 1000))
     }
 
-    if (ends.length === 0) return 0
+    if (ends.length === 0) return undefined
     const end = Math.max(...ends)
-    return Math.max(0, Math.round((end - start) / 1000))
+    return Math.max(1, Math.round((end - start) / 1000))
   })
 
   const formattedDuration = createMemo(() => {
     const total = duration()
     if (total === undefined) return undefined
+    const seconds = Math.max(1, total)
     const numfmt = new Intl.NumberFormat(i18n.locale())
-    if (total < 60) {
-      return i18n.t("ui.message.duration.seconds", { count: numfmt.format(total) })
+    if (seconds < 60) {
+      return i18n.t("ui.message.duration.seconds", { count: numfmt.format(seconds) })
     }
     return i18n.t("ui.message.duration.minutesSeconds", {
-      minutes: numfmt.format(Math.floor(total / 60)),
-      seconds: numfmt.format(total % 60),
+      minutes: numfmt.format(Math.floor(seconds / 60)),
+      seconds: numfmt.format(seconds % 60),
     })
   })
 
