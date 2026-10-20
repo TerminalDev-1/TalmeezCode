@@ -181,11 +181,11 @@ test("caps cumulative loop counts so they do not blow out the context window bey
     thinking_tokens: 2_000,
     cache_read_tokens: 10_800_000,
     total_tokens: 11_023_000,
-  }, 2_000_000)
+  }, 200_000)
   expect(result.inputTokens).toEqual({
-    total: 2_000_000,
+    total: 200_000,
     noCache: 0,
-    cacheRead: 2_000_000,
+    cacheRead: 200_000,
     cacheWrite: undefined,
   })
 })
@@ -333,6 +333,7 @@ it.live("discovers the installed CLI and streams its agent events", () =>
           name: "Gemini 4 Argon",
           family: "gemini",
           capabilities: { tools: false, input: ["text"], output: ["text"] },
+          limit: { context: 200_000, output: 65_536 },
         })
 
         const usage = yield* getUsage()

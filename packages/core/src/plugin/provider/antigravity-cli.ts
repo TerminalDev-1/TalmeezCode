@@ -263,7 +263,7 @@ export const AntigravityCLIPlugin = define({
           model.capabilities = { tools: false, input: ["text"], output: ["text"] }
           model.variants = modelReasoningVariants(item.id, availableIds)
           model.limit = isGeminiModel(item.id, item.name)
-            ? { context: 2_000_000, output: 65_536 }
+            ? { context: 200_000, output: 65_536 }
             : { context: 200_000, output: 32_000 }
         })
       })
@@ -345,7 +345,7 @@ class AntigravityLanguageModel implements LanguageModelV3 {
       message: { content: prompt(options.prompt, desktopHost) },
     }
     const stdin = `${JSON.stringify(request)}\n`
-    const maxContext = isGeminiModel(this.modelId) ? 2_000_000 : 200_000
+    const maxContext = 200_000
     const promptText = request.message.content
     const promptEstimatedTokens = Math.max(1, Math.round(promptText.length / 4))
     const state: StreamState = {
