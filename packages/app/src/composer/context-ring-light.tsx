@@ -95,7 +95,7 @@ export function ContextRingLight(props: ContextRingLightProps) {
     }
 
     const percentage = Math.min(100, Math.round((totalTokens / limit) * 100))
-    const threshold = 170_000
+    const threshold = limit === 200_000 ? 170_000 : Math.round(limit * 0.85)
     const thresholdPercentage = Math.round((threshold / limit) * 100)
     const isNearLimit = totalTokens >= threshold
 
@@ -126,6 +126,13 @@ export function ContextRingLight(props: ContextRingLightProps) {
   })
 
   const formatTokens = (val: number) => val.toLocaleString()
+  const formatK = (val: number) => {
+    if (val >= 1_000_000) {
+      const m = val / 1_000_000
+      return `${m % 1 === 0 ? m : m.toFixed(1)}M`
+    }
+    return `${Math.round(val / 1_000)}K`
+  }
 
   return (
     <Popover placement="top" gutter={8}>
@@ -173,15 +180,15 @@ export function ContextRingLight(props: ContextRingLightProps) {
                 "bg-emerald-500/10 text-emerald-500 border border-emerald-500/20": !stats().isNearLimit && stats().percentage < 70,
               }}
             >
-              {stats().isNearLimit ? "Compacting at 170K" : `${stats().percentage}% used`}
+              {stats().isNearLimit ? `Compacting at ${formatK(stats().threshold)}` : `${stats().percentage}% used`}
             </span>
           </div>
 
-          {/* Context Limit Gauge with 170K Compaction Marker */}
+          {/* Context Limit Gauge with Compaction Marker */}
           <div class="py-3 border-b border-v2-border-border-base">
             <div class="flex items-center justify-between text-[11px] text-v2-text-text-muted mb-1.5">
               <span>Usage Capacity</span>
-              <span>200K Limit</span>
+              <span>{formatK(stats().maxContext)} Limit</span>
             </div>
             <div class="relative h-2 w-full rounded-full bg-v2-background-bg-layer-04 overflow-hidden">
               <div
@@ -200,13 +207,13 @@ export function ContextRingLight(props: ContextRingLightProps) {
               <div
                 class="absolute top-0 bottom-0 w-0.5 bg-red-400 z-10"
                 style={{ left: `${stats().thresholdPercentage}%` }}
-                title="170K Compaction Threshold"
+                title={`${formatK(stats().threshold)} Compaction Threshold`}
               />
             </div>
             <div class="flex items-center justify-between text-[10px] text-v2-text-text-muted mt-1">
               <span>0</span>
-              <span class="text-amber-500 font-medium">170K auto-compaction</span>
-              <span>200K</span>
+              <span class="text-amber-500 font-medium">{formatK(stats().threshold)} auto-compaction</span>
+              <span>{formatK(stats().maxContext)}</span>
             </div>
           </div>
 
@@ -269,8 +276,8 @@ export function ContextRingLight(props: ContextRingLightProps) {
             </Show>
             <div class="text-[10px] leading-relaxed opacity-80 pt-1">
               {stats().isNearLimit
-                ? "Compaction threshold of 170K tokens is active. The conversation will automatically compact before reaching the 200K limit."
-                : "The conversation will automatically compact at 170K tokens before reaching the 200K limit to preserve recent context."}
+                ? `Compaction threshold of ${formatK(stats().threshold)} tokens is active. The conversation will automatically compact before reaching the ${formatK(stats().maxContext)} limit.`
+                : `The conversation will automatically compact at ${formatK(stats().threshold)} tokens before reaching the ${formatK(stats().maxContext)} limit to preserve recent context.`}
             </div>
           </div>
         </Popover.Content>

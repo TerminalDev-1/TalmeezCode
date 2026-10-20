@@ -190,6 +190,37 @@ test("caps cumulative loop counts so they do not blow out the context window bey
   })
 })
 
+test("trims redundant tool guidance, verbose communication, and condenses skills for Antigravity", () => {
+  const prompt = `You are an AI agent.
+
+# Harness
+- Responses are rendered as GitHub-flavored Markdown.
+- Use the edit tool for targeted changes to existing text files. It replaces the exact text in \`oldString\` with \`newString\`.
+- Use the write tool to create files or completely replace their content.
+
+# Communication & Progress Updates
+- Use clear file paths when referring to files.
+- Be verbose, proactive, and transparent: explain what you are doing, why you are doing it.
+- Before executing tools or complex actions, outline your plan, approach, and intent clearly.
+
+<available_skills>
+<skill>
+<name>test-skill</name>
+<description>This is the first sentence. Here is a very long paragraph that goes into extensive detail about how the skill works internally and why it is useful.</description>
+</skill>
+</available_skills>`
+
+  const cleaned = cleanSystemPromptForAntigravity(prompt)
+  expect(cleaned).not.toContain("Use the edit tool")
+  expect(cleaned).not.toContain("Use the write tool")
+  expect(cleaned).not.toContain("Be verbose, proactive, and transparent")
+  expect(cleaned).toContain("# Communication & Updates")
+  expect(cleaned).toContain("Be concise, direct, and efficient")
+  expect(cleaned).toContain("<name>test-skill</name>")
+  expect(cleaned).toContain("<description>This is the first sentence.</description>")
+  expect(cleaned).not.toContain("Here is a very long paragraph")
+})
+
 test("cleans Code Mode catalog from system prompt for Antigravity", () => {
   const systemWithCodeMode = `You are an AI agent.
 

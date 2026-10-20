@@ -263,7 +263,7 @@ export const AntigravityCLIPlugin = define({
           model.capabilities = { tools: false, input: ["text"], output: ["text"] }
           model.variants = modelReasoningVariants(item.id, availableIds)
           model.limit = isGeminiModel(item.id, item.name)
-            ? { context: 200_000, output: 64_000 }
+            ? { context: 2_000_000, output: 65_536 }
             : { context: 200_000, output: 32_000 }
         })
       })
@@ -345,11 +345,17 @@ class AntigravityLanguageModel implements LanguageModelV3 {
       message: { content: prompt(options.prompt, desktopHost) },
     }
     const stdin = `${JSON.stringify(request)}\n`
+    const maxContext = isGeminiModel(this.modelId) ? 2_000_000 : 200_000
+    const promptText = request.message.content
+    const promptEstimatedTokens = Math.max(1, Math.round(promptText.length / 4))
     const state: StreamState = {
       result: false,
       text: new Set(),
       emittedText: false,
       desktopHost,
+      maxContext,
+      promptEstimatedTokens,
+      generatedTokens: 0,
     }
     const processes = this.processes
     const cwd = this.cwd
@@ -438,6 +444,9 @@ type StreamState = {
     cache_read_tokens?: number
     output_tokens?: number
   }
+  maxContext: number
+  promptEstimatedTokens: number
+  generatedTokens: number
 }
 
 function streamParts(state: StreamState, event: typeof Event.Type): LanguageModelV3StreamPart[] {
@@ -467,25 +476,37 @@ function streamParts(state: StreamState, event: typeof Event.Type): LanguageMode
           { type: "text-delta", id: "antigravity-response", delta: response },
           { type: "text-end", id: "antigravity-response" },
         ] satisfies LanguageModelV3StreamPart[])
-  const usageInput =
-    state.lastStepUsage?.input_tokens !== undefined
-      ? {
-          input_tokens: state.lastStepUsage.input_tokens,
-          output_tokens: event.result.usage.output_tokens,
-          thinking_tokens: event.result.usage.thinking_tokens,
-          cache_read_tokens: state.lastStepUsage.cache_read_tokens ?? 0,
-          total_tokens:
-            state.lastStepUsage.input_tokens +
-            (state.lastStepUsage.cache_read_tokens ?? 0) +
-            event.result.usage.output_tokens,
-        }
-      : event.result.usage
+  let usageInput = event.result.usage
+  if (state.lastStepUsage?.input_tokens !== undefined) {
+    usageInput = {
+      input_tokens: state.lastStepUsage.input_tokens,
+      output_tokens: event.result.usage.output_tokens,
+      thinking_tokens: event.result.usage.thinking_tokens,
+      cache_read_tokens: state.lastStepUsage.cache_read_tokens ?? 0,
+      total_tokens:
+        state.lastStepUsage.input_tokens +
+        (state.lastStepUsage.cache_read_tokens ?? 0) +
+        event.result.usage.output_tokens,
+    }
+  } else if (event.result.usage.input_tokens > Math.max(state.promptEstimatedTokens * 5, 30_000)) {
+    const effectiveContext = Math.min(
+      state.promptEstimatedTokens + state.generatedTokens,
+      state.maxContext,
+    )
+    usageInput = {
+      input_tokens: effectiveContext,
+      output_tokens: event.result.usage.output_tokens,
+      thinking_tokens: event.result.usage.thinking_tokens,
+      cache_read_tokens: Math.min(event.result.usage.cache_read_tokens, effectiveContext),
+      total_tokens: effectiveContext + event.result.usage.output_tokens,
+    }
+  }
   return [
     ...closes,
     ...fallback,
     {
       type: "finish",
-      usage: usage(usageInput),
+      usage: usage(usageInput, state.maxContext),
       finishReason: { unified: "stop", raw: event.result.status },
       providerMetadata: {
         antigravity: { conversationId: event.result.conversation_id },
@@ -507,7 +528,10 @@ function stepParts(state: StreamState, step: typeof StepUpdate.Type): LanguageMo
     const id = `antigravity-response-${step.step_index}`
     const start = state.text.has(id) ? [] : ([{ type: "text-start", id }] satisfies LanguageModelV3StreamPart[])
     state.text.add(id)
-    if (step.text_delta) state.emittedText = true
+    if (step.text_delta) {
+    state.emittedText = true
+    state.generatedTokens += Math.max(1, Math.round(step.text_delta.length / 4))
+  }
     const delta = step.text_delta
       ? ([{ type: "text-delta", id, delta: step.text_delta }] satisfies LanguageModelV3StreamPart[])
       : []
@@ -521,6 +545,8 @@ function stepParts(state: StreamState, step: typeof StepUpdate.Type): LanguageMo
   const error = step.tool_info.error
   const value = error ? error.message || error.type || "Antigravity tool failed" : (step.tool_info.output ?? "")
   const result: NonNullable<JSONValue> = typeof value === "string" ? value : value === null ? "" : JSON.stringify(value)
+  const outputLength = typeof value === "string" ? value.length : value === null ? 0 : JSON.stringify(value).length
+  state.generatedTokens += Math.max(1, Math.round(outputLength / 4))
   return [
     {
       type: "tool-call",
@@ -638,9 +664,21 @@ async function prepareDesktopLaunch(state: StreamState, event: typeof Event.Type
 }
 
 export function cleanSystemPromptForAntigravity(content: string): string {
-  return content
+  let cleaned = content
     .replace(/# Code Mode[\s\S]*?(?=\n(?:Project references|<available_references>|<available_skills>|Instructions from:|$))/g, "")
-    .trim()
+    .replace(/- Use the edit tool[\s\S]*?(?=\n- |\n# |\n<|$)/g, "")
+    .replace(/- Use the write tool[\s\S]*?(?=\n- |\n# |\n<|$)/g, "")
+    .replace(
+      /# Communication & Progress Updates[\s\S]*?(?=\n# |\n<|\nInstructions from:|$)/g,
+      "# Communication & Updates\n- Use clear file paths when referring to files.\n- Be concise, direct, and efficient. Avoid excessive exploratory loops or verbose step-by-step narration to conserve context window.\n\n",
+    )
+    .replace(/<skill>([\s\S]*?)<\/skill>/g, (_, skillBody: string) => {
+      return `<skill>${skillBody.replace(/<description>([\s\S]*?)<\/description>/, (__: string, desc: string) => {
+        const firstSentence = desc.trim().split(/(?<=[.!?])\s+|\r?\n/)[0] ?? desc.trim()
+        return `<description>${firstSentence.slice(0, 140)}<\/description>`
+      })}<\/skill>`
+    })
+  return cleaned.trim()
 }
 
 export function prompt(input: LanguageModelV3Prompt, desktopHost = false) {
@@ -682,6 +720,7 @@ export function prompt(input: LanguageModelV3Prompt, desktopHost = false) {
     "Use Antigravity's own tools in the current workspace when the task requires them, while respecting the configured permission policy.",
     "Prefer native workspace tools such as list_dir, view_file, grep_search, sed_file, and file editing tools over terminal commands whenever they can perform the task.",
     "For directory inspection, use list_dir rather than view_file or a shell directory-listing command.",
+    "Be concise, efficient, and direct. Minimize unnecessary tool calls and avoid deep exploratory loops to conserve the context window.",
     ...(desktopHost
       ? [
           "The latest user explicitly requested a Python desktop window. Do not launch it with run_command or manage_task; processes owned by this CLI are terminated when the turn ends.",

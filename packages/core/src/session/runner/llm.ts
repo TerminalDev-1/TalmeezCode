@@ -215,23 +215,39 @@ const layer = Layer.effect(
       let recoverContinuation = true
       let warnedContextLimit = false
 
-      const warnContextLimit = Effect.gen(function* () {
-        if (warnedContextLimit) return
-        yield* bus.publish(SessionEvent.Synthetic, {
-          sessionID,
-          text: "You've hit the 170K context threshold (limit: 200K). OpenCode will attempt compaction before reaching the 200K limit.",
-          description: "Context threshold reached: compacting at 170K before 200K limit",
+      const formatContextK = (val: number) => {
+        if (val >= 1_000_000) {
+          const m = val / 1_000_000
+          return `${m % 1 === 0 ? m : m.toFixed(1)}M`
+        }
+        return `${Math.round(val / 1000)}K`
+      }
+
+      const warnContextLimit = (loaded: SessionContext.Loaded) =>
+        Effect.gen(function* () {
+          if (warnedContextLimit) return
+          const win = loaded.model.limit.input || loaded.model.limit.context
+          const thresh = win === 200_000 ? 170_000 : SessionCompaction.calculateCeiling(loaded.model.limit, undefined)
+          const windowText = win === 200_000 ? "200K" : formatContextK(win)
+          const thresholdText = thresh === 170_000 ? "170K" : formatContextK(thresh)
+          yield* bus.publish(SessionEvent.Synthetic, {
+            sessionID,
+            text: `You've hit the ${thresholdText} context threshold (limit: ${windowText}). OpenCode will attempt compaction before reaching the ${windowText} limit.`,
+            description: `Context threshold reached: compacting at ${thresholdText} before ${windowText} limit`,
+          })
+          warnedContextLimit = true
         })
-        warnedContextLimit = true
-      })
 
       while (true) {
         // Reuse boundary preparation once; retries refresh context without delivering more input.
         const loaded = initial ?? (yield* prepareContext(sessionID).pipe(Effect.flatMap(context.load)))
         initial = undefined
         const currentTokens = SessionCompaction.estimateContext(loaded)
-        if (currentTokens >= 170_000) {
-          yield* warnContextLimit
+        const window = loaded.model.limit.input || loaded.model.limit.context
+        const ceiling = SessionCompaction.calculateCeiling(loaded.model.limit, undefined)
+        const threshold = window === 200_000 ? 170_000 : ceiling
+        if (currentTokens >= threshold) {
+          yield* warnContextLimit(loaded)
         }
         const compacted = yield* compaction.compact({ reason: "auto", context: loaded })
         if (compacted.status === "failed") return yield* new StepFailedError({ error: compacted.error })
@@ -239,7 +255,7 @@ const layer = Layer.effect(
           assistantMessageID = SessionMessage.ID.create()
           continue
         }
-        if (currentTokens >= 170_000 && loaded.messages.at(-1)?.type !== "compaction") {
+        if (currentTokens >= threshold && loaded.messages.at(-1)?.type !== "compaction") {
           const overflowCompacted = yield* compaction.compact({ reason: "overflow", context: loaded })
           if (overflowCompacted.status === "completed") {
             assistantMessageID = SessionMessage.ID.create()
@@ -291,8 +307,8 @@ const layer = Layer.effect(
           recoverOverflow: Effect.suspend(() =>
             recoverOverflow
               ? Effect.gen(function* () {
-                  if (currentTokens >= 170_000) {
-                    yield* warnContextLimit
+                  if (currentTokens >= threshold) {
+                    yield* warnContextLimit(loaded)
                   }
                   const result = yield* compaction.compact({ reason: "overflow", context: loaded })
                   return result.status === "completed"
